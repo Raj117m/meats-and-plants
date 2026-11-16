@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Employee } from '../../types';
+import { DEFAULT_STAFF } from '../../data/defaultStaff';
 import { Logo } from '../common/Logo';
 import { Search, UserCheck, ArrowRight, Check, Lock } from 'lucide-react';
 
@@ -10,7 +11,9 @@ export const StaffNamePicker: React.FC = () => {
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
 
-  const filtered = employees.filter((e) =>
+  const staffList = employees && employees.length > 0 ? employees : DEFAULT_STAFF;
+
+  const filtered = staffList.filter((e) =>
     e.name.toLowerCase().includes(search.toLowerCase()) ||
     e.role.toLowerCase().includes(search.toLowerCase())
   );

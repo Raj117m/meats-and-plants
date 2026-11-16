@@ -56,27 +56,30 @@ export function seedData(force = false) {
       allow_offsite_checkout = 1
   `).run();
 
-  // 2. Staff Members (10 friendly employees with daily wage & monthly salary)
+  // 2. Staff Members (10 actual café team members from handwritten roster)
   const staff = [
-    { name: 'Aarav Sharma', phone: '9876543210', pin: '1111', role: 'Head Chef', pay_type: 'monthly', daily_wage: 733, salary: 22000, joined: '2025-06-01', bonus: 'pay', color: '#2F7D4F' },
-    { name: 'Priya Nair', phone: '9876543211', pin: '2222', role: 'Sous Chef', pay_type: 'monthly', daily_wage: 650, salary: 19500, joined: '2025-07-15', bonus: 'pay', color: '#C0573E' },
-    { name: 'Rohan Verma', phone: '9876543212', pin: '3333', role: 'Head Barista', pay_type: 'monthly', daily_wage: 600, salary: 18000, joined: '2025-08-01', bonus: 'pay', color: '#4A7BB7' },
-    { name: 'Ananya Sen', phone: '9876543213', pin: '4444', role: 'Barista & Mixologist', pay_type: 'monthly', daily_wage: 550, salary: 16500, joined: '2025-09-10', bonus: 'pay', color: '#E8B44A' },
-    { name: 'Vikram Patel', phone: '9876543214', pin: '5555', role: 'Floor Captain', pay_type: 'monthly', daily_wage: 617, salary: 18500, joined: '2025-05-20', bonus: 'pay', color: '#2F7D4F' },
-    { name: 'Neha Roy', phone: '9876543215', pin: '6666', role: 'Senior Server', pay_type: 'monthly', daily_wage: 517, salary: 15500, joined: '2025-10-01', bonus: 'pay', color: '#C0573E' },
-    { name: 'Kabir Das', phone: '9876543216', pin: '7777', role: 'Server', pay_type: 'daily', daily_wage: 550, salary: 16500, joined: '2025-11-01', bonus: 'pay', color: '#4A7BB7' },
-    { name: 'Tanvi Kulkarni', phone: '9876543217', pin: '8888', role: 'Pastry & Bakery Chef', pay_type: 'monthly', daily_wage: 633, salary: 19000, joined: '2025-07-01', bonus: 'leave', color: '#E8B44A' },
-    { name: 'Rahul Mehra', phone: '9876543218', pin: '9999', role: 'Line Cook', pay_type: 'monthly', daily_wage: 533, salary: 16000, joined: '2025-09-15', bonus: 'pay', color: '#2F7D4F' },
-    { name: 'Sunil Jadhav', phone: '9876543219', pin: '1234', role: 'Kitchen Steward', pay_type: 'daily', daily_wage: 500, salary: 15000, joined: '2025-08-10', bonus: 'pay', color: '#7A746A' }
+    { name: 'Shoaib', phone: '9876543210', pin: '1111', role: 'Head Chef', pay_type: 'monthly', daily_wage: 750, salary: 22500, joined: '2025-06-01', bonus: 'pay', color: '#2F7D4F' },
+    { name: 'Vansh', phone: '9876543211', pin: '2222', role: 'Sous Chef', pay_type: 'monthly', daily_wage: 650, salary: 19500, joined: '2025-07-15', bonus: 'pay', color: '#C0573E' },
+    { name: 'Akash', phone: '9876543212', pin: '3333', role: 'Head Barista', pay_type: 'monthly', daily_wage: 600, salary: 18000, joined: '2025-08-01', bonus: 'pay', color: '#4A7BB7' },
+    { name: 'Kunal', phone: '9876543213', pin: '4444', role: 'Barista & Mixologist', pay_type: 'monthly', daily_wage: 550, salary: 16500, joined: '2025-09-10', bonus: 'pay', color: '#E8B44A' },
+    { name: 'Praveen', phone: '9876543214', pin: '5555', role: 'Floor Captain', pay_type: 'monthly', daily_wage: 600, salary: 18000, joined: '2025-05-20', bonus: 'pay', color: '#2F7D4F' },
+    { name: 'Harsh', phone: '9876543215', pin: '6666', role: 'Senior Server', pay_type: 'monthly', daily_wage: 550, salary: 16500, joined: '2025-10-01', bonus: 'pay', color: '#C0573E' },
+    { name: 'Narayan', phone: '9876543216', pin: '7777', role: 'Server', pay_type: 'daily', daily_wage: 500, salary: 15000, joined: '2025-11-01', bonus: 'pay', color: '#4A7BB7' },
+    { name: 'Shrini', phone: '9876543217', pin: '8888', role: 'Pastry & Bakery Chef', pay_type: 'monthly', daily_wage: 650, salary: 19500, joined: '2025-07-01', bonus: 'leave', color: '#E8B44A' },
+    { name: 'Karthik', phone: '9876543218', pin: '9999', role: 'Line Cook', pay_type: 'monthly', daily_wage: 550, salary: 16500, joined: '2025-09-15', bonus: 'pay', color: '#2F7D4F' },
+    { name: 'Shivam', phone: '9876543219', pin: '1234', role: 'Kitchen Steward', pay_type: 'daily', daily_wage: 500, salary: 15000, joined: '2025-08-10', bonus: 'pay', color: '#7A746A' }
   ];
 
   const insertEmployee = db.prepare(`
     INSERT INTO employees (id, name, phone, pin, role, pay_type, daily_wage, monthly_salary, joining_date, is_active, bonus_preference, avatar_color)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      role = excluded.role,
       pay_type = excluded.pay_type,
       daily_wage = excluded.daily_wage,
-      monthly_salary = excluded.monthly_salary
+      monthly_salary = excluded.monthly_salary,
+      avatar_color = excluded.avatar_color
   `);
 
   staff.forEach((emp, idx) => {

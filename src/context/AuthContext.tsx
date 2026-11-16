@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Employee, Settings } from '../types';
 import { api } from '../api';
+import { DEFAULT_STAFF, DEFAULT_SETTINGS } from '../data/defaultStaff';
 
 interface AuthContextType {
   role: 'staff' | 'owner';
@@ -23,7 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [role, setRole] = useState<'staff' | 'owner'>('staff');
   const [currentStaff, setCurrentStaff] = useState<Employee | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(DEFAULT_STAFF);
   const [isOwnerAuthenticated, setIsOwnerAuthenticated] = useState<boolean>(false);
   const [ownerName, setOwnerName] = useState<string>('Abhigit');
   const [ownerModalOpen, setOwnerModalOpen] = useState<boolean>(false);
@@ -31,8 +32,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshEmployees = async () => {
     try {
-      const [list, settings] = await Promise.all([api.getEmployees(), api.getSettings()]);
-      setEmployees(list);
+      const [list, settings] = await Promise.all([
+        api.getEmployees().catch(() => DEFAULT_STAFF),
+        api.getSettings().catch(() => DEFAULT_SETTINGS)
+      ]);
+      const finalList = list && list.length > 0 ? list : DEFAULT_STAFF;
+      setEmployees(finalList);
       if (settings?.owner_name) {
         setOwnerName(settings.owner_name);
       }
@@ -46,13 +51,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Check remembered staff in localStorage
       const savedStaffId = localStorage.getItem('mp_remembered_staff_id');
       if (savedStaffId) {
-        const found = list.find((e) => e.id === Number(savedStaffId));
+        const found = finalList.find((e) => e.id === Number(savedStaffId));
         if (found) {
           setCurrentStaff(found);
         }
       }
     } catch (err) {
       console.error('Failed to initialize auth state:', err);
+      setEmployees(DEFAULT_STAFF);
     } finally {
       setLoading(false);
     }
