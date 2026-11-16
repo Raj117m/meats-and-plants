@@ -271,7 +271,7 @@ export const MyMonthTab: React.FC = () => {
 
           {calendarDays.map(({ dayNum, dateKey, record, isPending, holiday }) => {
             const status = record?.status;
-            const isToday = dateKey === '2026-11-15';
+            const isToday = dateKey === new Date().toISOString().split('T')[0];
             let dotStyle = 'bg-[#FAFAF8] text-[#6E6E6A] border-transparent';
 
             if (isPending) {

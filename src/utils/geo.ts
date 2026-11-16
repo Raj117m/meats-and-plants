@@ -128,8 +128,8 @@ export interface AccuratePositionOptions {
 export async function getAccuratePosition(
   options: AccuratePositionOptions = {}
 ): Promise<GeoPosition> {
-  const storeLat = options.storeLat ?? 19.2604227;
-  const storeLng = options.storeLng ?? 72.9794437;
+  const storeLat = options.storeLat ?? 19.2584498;
+  const storeLng = options.storeLng ?? 72.977272;
   const mockMode = typeof window !== 'undefined' ? window.__MOCK_GEO_MODE || 'real' : 'real';
 
   if (mockMode === 'off') {
@@ -258,7 +258,7 @@ export async function getAccuratePosition(
   });
 }
 
-export async function getCurrentPosition(storeLat = 19.2604227, storeLng = 72.9794437): Promise<GeoPosition> {
+export async function getCurrentPosition(storeLat = 19.2584498, storeLng = 72.977272): Promise<GeoPosition> {
   return getAccuratePosition({ storeLat, storeLng, timeoutMs: 5000 });
 }
 

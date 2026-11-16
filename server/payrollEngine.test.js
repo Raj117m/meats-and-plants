@@ -327,22 +327,26 @@ describe('Meats & Plants — Payroll & Rules Engine v5 (Quartz)', () => {
   });
 
   describe('7. Geofence & GPS Validation', () => {
-    it('accepts Sparta Building coordinates within radius', () => {
+    it('accepts Meats & Plants Thane coordinates within 150m radius', () => {
       const res = validateGeofence({
-        lat: 19.260423,
-        lng: 72.979444,
+        lat: 19.258450,
+        lng: 72.977270,
         accuracy: 15,
-        radiusMeters: 75
+        storeLat: 19.2584498,
+        storeLng: 72.977272,
+        radiusMeters: 150
       });
       expect(res.allowed).toBe(true);
     });
 
     it('rejects coordinates far away (>1 km)', () => {
       const res = validateGeofence({
-        lat: 19.250000,
+        lat: 19.245000,
         lng: 72.960000,
         accuracy: 20,
-        radiusMeters: 75
+        storeLat: 19.2584498,
+        storeLng: 72.977272,
+        radiusMeters: 150
       });
       expect(res.allowed).toBe(false);
       expect(res.error).toContain('away from Meats & Plants');

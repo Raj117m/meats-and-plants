@@ -26,15 +26,15 @@ export function initDatabase() {
       bonus_type TEXT NOT NULL DEFAULT 'pay',
       auto_checkout_time TEXT NOT NULL DEFAULT '00:00',
       allowed_ssids TEXT NOT NULL DEFAULT 'ABHIGIT 5G',
-      cafe_name TEXT NOT NULL DEFAULT 'Meats & Plants',
+      cafe_name TEXT NOT NULL DEFAULT 'Meats & Plants Thane',
       owner_pin TEXT NOT NULL DEFAULT '1234',
       owner_password TEXT NOT NULL DEFAULT 'meats2026',
       owner_name TEXT NOT NULL DEFAULT 'Abhigit',
       leave_approval_required INTEGER NOT NULL DEFAULT 1,
-      store_lat REAL NOT NULL DEFAULT 19.2604227,
-      store_lng REAL NOT NULL DEFAULT 72.9794437,
-      geofence_radius INTEGER NOT NULL DEFAULT 30,
-      store_address TEXT NOT NULL DEFAULT 'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607',
+      store_lat REAL NOT NULL DEFAULT 19.2584498,
+      store_lng REAL NOT NULL DEFAULT 72.977272,
+      geofence_radius INTEGER NOT NULL DEFAULT 150,
+      store_address TEXT NOT NULL DEFAULT 'Shop No. 21, Hiranandani Estate, Thane',
       allow_offsite_checkout INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -243,7 +243,11 @@ export function initDatabase() {
     if (locCount === 0) {
       db.prepare(`
         INSERT INTO locations (name, lat, lng, radius, address, is_primary)
-        VALUES ('Meats & Plants — Sparta Building (Main)', 19.2604227, 72.9794437, 75, 'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607', 1)
+        VALUES ('Meats & Plants Thane', 19.2584498, 72.977272, 150, 'Shop No. 21, Hiranandani Estate, Thane', 1)
+      `).run();
+    } else {
+      db.prepare(`
+        UPDATE locations SET name = 'Meats & Plants Thane', lat = 19.2584498, lng = 72.977272, radius = 150, address = 'Shop No. 21, Hiranandani Estate, Thane' WHERE is_primary = 1
       `).run();
     }
   } catch {}

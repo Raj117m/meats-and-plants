@@ -739,7 +739,7 @@ export const api = {
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch {
-      const roster = computeLocalRoster(date || '2026-11-15');
+      const roster = computeLocalRoster(date || getTodayDateStr());
       const headers = ['Employee Name', 'Role', 'Status', 'Check In', 'Check Out', 'Worked Hours', 'Date'];
       const rows = roster.roster.map((r) => [
         `"${r.name}"`,

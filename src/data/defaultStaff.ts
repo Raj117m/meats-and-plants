@@ -215,15 +215,15 @@ export const DEFAULT_SETTINGS: Settings = {
   bonus_type: 'leave',
   auto_checkout_time: '00:00',
   allowed_ssids: 'ABHIGIT 5G',
-  cafe_name: 'Meats & Plants',
+  cafe_name: 'Meats & Plants Thane',
   owner_pin: '1234',
   owner_password: 'meats2026',
   owner_name: 'Abhigit',
   leave_approval_required: 1,
-  store_lat: 19.2604227,
-  store_lng: 72.9794437,
+  store_lat: 19.2584498,
+  store_lng: 72.977272,
   geofence_radius: 150,
-  store_address: 'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607',
+  store_address: 'Shop No. 21, Hiranandani Estate, Thane',
   allow_offsite_checkout: 1
 };
 

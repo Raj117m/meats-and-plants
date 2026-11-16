@@ -112,24 +112,26 @@ export const AttendanceDrawer: React.FC<AttendanceDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-xs transition-opacity" onClick={onClose} />
+    <div className="fixed inset-0 z-50 overflow-hidden flex items-end md:items-stretch justify-end">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={onClose} />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-[#FFFDF9] rounded-l-[28px] warm-card p-6 flex flex-col justify-between overflow-y-auto">
-          <div>
-            <div className="flex items-center justify-between pb-4 border-b border-[#ECE7DF]">
-              <div>
-                <h3 className="font-heading text-lg font-bold text-[#22201C]">{employee.name}</h3>
-                <p className="text-xs text-[#7A746A]">{formatDateReadable(date)} · Shift Day Editor</p>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-full hover:bg-[#F6F2EA] text-[#7A746A]"
-              >
-                <X size={18} />
-              </button>
+      <div className="relative w-full md:max-w-md bg-[#FAFAF8] rounded-t-3xl md:rounded-t-none md:rounded-l-[28px] border-t md:border-t-0 md:border-l border-[#E6E6E2] p-5 sm:p-6 flex flex-col justify-between overflow-y-auto max-h-[90vh] md:max-h-full safe-pb shadow-2xl z-10">
+        {/* Mobile Drag Handle */}
+        <div className="w-10 h-1 rounded-full bg-[#E6E6E2] mx-auto mb-2 md:hidden" />
+
+        <div>
+          <div className="flex items-center justify-between pb-3 border-b border-[#E6E6E2]">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-[#0A0A0A]">{employee.name}</h3>
+              <p className="text-xs text-[#6E6E6A]">{formatDateReadable(date)} · Shift Day Editor</p>
             </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-[#F2F2EF] text-[#6E6E6A]"
+            >
+              <X size={18} />
+            </button>
+          </div>
 
             {error && (
               <div className="mt-3 p-3 bg-[#FBECEA] text-[#D9534A] text-xs rounded-xl flex items-center gap-2">
@@ -342,11 +344,11 @@ export const AttendanceDrawer: React.FC<AttendanceDrawerProps> = ({
             </form>
           </div>
 
-          <div className="pt-4 border-t border-[#ECE7DF] flex items-center justify-between gap-3">
+          <div className="pt-4 border-t border-[#E6E6E2] flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-medium text-[#7A746A] hover:bg-[#F6F2EA]"
+              className="flex-1 py-3 px-4 rounded-xl text-xs font-semibold text-[#6E6E6A] glass-btn hover:text-[#0A0A0A] min-h-[44px] cursor-pointer"
             >
               Cancel
             </button>
@@ -354,7 +356,7 @@ export const AttendanceDrawer: React.FC<AttendanceDrawerProps> = ({
               form="attendance-drawer-form"
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#2F7D4F] hover:bg-[#276842] transition-colors flex items-center gap-1.5 shadow-xs"
+              className="flex-1 py-3 px-4 rounded-xl text-xs font-bold text-white glass-btn-primary transition-colors flex items-center justify-center gap-1.5 shadow-2xs min-h-[44px] cursor-pointer disabled:opacity-50"
             >
               <Save size={15} />
               <span>{loading ? 'Saving...' : 'Save & Recalculate'}</span>
@@ -362,6 +364,5 @@ export const AttendanceDrawer: React.FC<AttendanceDrawerProps> = ({
           </div>
         </div>
       </div>
-    </div>
   );
 };

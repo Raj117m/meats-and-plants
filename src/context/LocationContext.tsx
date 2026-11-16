@@ -36,9 +36,9 @@ const LocationContext = createContext<LocationContextType | undefined>(undefined
 
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [storeCoords, setStoreCoords] = useState<{ lat: number; lng: number; radius: number }>({
-    lat: 19.2604227,
-    lng: 72.9794437,
-    radius: 75
+    lat: 19.2584498,
+    lng: 72.977272,
+    radius: 150
   });
 
   const [mockMode, setMockModeState] = useState<MockGeoMode>(() => {
@@ -93,9 +93,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const s = await api.getSettings();
       if (s) {
         setStoreCoords({
-          lat: s.store_lat || 19.2604227,
-          lng: s.store_lng || 72.9794437,
-          radius: s.geofence_radius || 75
+          lat: s.store_lat || 19.2584498,
+          lng: s.store_lng || 72.977272,
+          radius: s.geofence_radius || 150
         });
       }
     } catch {
@@ -208,16 +208,16 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     isWeakGps = accuracy > 150;
     const effectiveDistance = distanceM - Math.min(accuracy, 50);
 
-    // Sparta Building Complex perimeter (Hiranandani Estate, Thane West)
-    const isStoreAtSparta = Math.abs(storeCoords.lat - 19.2604227) < 0.005 && Math.abs(storeCoords.lng - 72.9794437) < 0.005;
-    const isInsideSpartaBox = isStoreAtSparta && (
-      userLocation.lat >= 19.2580 &&
+    // Hiranandani Estate, Thane West perimeter
+    const isStoreAtHiranandani = Math.abs(storeCoords.lat - 19.2584498) < 0.005 && Math.abs(storeCoords.lng - 72.977272) < 0.005;
+    const isInsideHiranandaniBox = isStoreAtHiranandani && (
+      userLocation.lat >= 19.2550 &&
       userLocation.lat <= 19.2630 &&
-      userLocation.lng >= 72.9770 &&
+      userLocation.lng >= 72.9730 &&
       userLocation.lng <= 72.9820
     );
 
-    isInsideGeofence = isInsideSpartaBox || effectiveDistance <= storeCoords.radius || distanceM <= storeCoords.radius;
+    isInsideGeofence = isInsideHiranandaniBox || effectiveDistance <= storeCoords.radius || distanceM <= storeCoords.radius;
   }
 
   let statusPillState: 'green' | 'red' | 'grey' = 'grey';

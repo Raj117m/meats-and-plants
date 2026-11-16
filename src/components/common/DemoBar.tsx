@@ -87,10 +87,10 @@ export const DemoBar: React.FC = () => {
                     ? 'bg-[#2F7D4F] text-white'
                     : 'text-[#A8A298] hover:text-white'
                 }`}
-                title="Simulate: Inside Sparta Building geofence (6m)"
+                title="Simulate: Inside Meats & Plants Thane (Shop 21, Hiranandani Estate)"
               >
                 <MapPin size={10} />
-                <span>At Sparta (Inside 30m)</span>
+                <span>At Thane Café (Inside 15m)</span>
               </button>
 
               <button
@@ -100,7 +100,7 @@ export const DemoBar: React.FC = () => {
                     ? 'bg-[#C0573E] text-white'
                     : 'text-[#A8A298] hover:text-white'
                 }`}
-                title="Simulate: Away from Sparta Building (1.3 km away)"
+                title="Simulate: Away from Meats & Plants Thane (1.3 km away)"
               >
                 Away (1.3 km)
               </button>
@@ -137,7 +137,7 @@ export const DemoBar: React.FC = () => {
             <button
               onClick={async () => {
                 try {
-                  await api.resetTodayRoster('2026-11-15');
+                  await api.resetTodayRoster();
                   showToast('Reset today! All staff are ready to check in.');
                   setTimeout(() => window.location.reload(), 500);
                 } catch (e: any) {

@@ -36,10 +36,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onSettingsSaved }) =
   const [leaveApprovalRequired, setLeaveApprovalRequired] = useState(1);
   const [ownerName, setOwnerName] = useState('Abhigit');
 
-  // Geofence states (Sparta Building, Hiranandani Estate, Thane West)
-  const [storeLat, setStoreLat] = useState(19.2604227);
-  const [storeLng, setStoreLng] = useState(72.9794437);
-  const [geofenceRadius, setGeofenceRadius] = useState(30);
+  // Geofence states (Meats & Plants Thane, Hiranandani Estate)
+  const [storeLat, setStoreLat] = useState(19.2584498);
+  const [storeLng, setStoreLng] = useState(72.977272);
+  const [geofenceRadius, setGeofenceRadius] = useState(150);
   const [mapsInput, setMapsInput] = useState('');
 
   // Password change modal
@@ -64,9 +64,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onSettingsSaved }) =
         setPaidLeavesPerMonth(s.paid_leaves_per_month);
         setLeaveApprovalRequired(s.leave_approval_required ?? 1);
         setOwnerName(s.owner_name || 'Abhigit');
-        setStoreLat(s.store_lat || 19.2604227);
-        setStoreLng(s.store_lng || 72.9794437);
-        setGeofenceRadius(s.geofence_radius || 30);
+        setStoreLat(s.store_lat || 19.2584498);
+        setStoreLng(s.store_lng || 72.977272);
+        setGeofenceRadius(s.geofence_radius || 150);
       }
     } catch (err) {
       console.error('Failed to load settings:', err);
@@ -91,9 +91,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onSettingsSaved }) =
       paidLeavesPerMonth !== initialSettings.paid_leaves_per_month ||
       leaveApprovalRequired !== (initialSettings.leave_approval_required ?? 1) ||
       ownerName !== (initialSettings.owner_name || 'Abhigit') ||
-      storeLat !== (initialSettings.store_lat || 19.2604227) ||
-      storeLng !== (initialSettings.store_lng || 72.9794437) ||
-      geofenceRadius !== (initialSettings.geofence_radius || 30))
+      storeLat !== (initialSettings.store_lat || 19.2584498) ||
+      storeLng !== (initialSettings.store_lng || 72.977272) ||
+      geofenceRadius !== (initialSettings.geofence_radius || 150))
   );
 
   const handleDiscard = () => {
@@ -107,9 +107,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onSettingsSaved }) =
       setPaidLeavesPerMonth(initialSettings.paid_leaves_per_month);
       setLeaveApprovalRequired(initialSettings.leave_approval_required ?? 1);
       setOwnerName(initialSettings.owner_name || 'Abhigit');
-      setStoreLat(initialSettings.store_lat || 19.2604227);
-      setStoreLng(initialSettings.store_lng || 72.9794437);
-      setGeofenceRadius(initialSettings.geofence_radius || 30);
+      setStoreLat(initialSettings.store_lat || 19.2584498);
+      setStoreLng(initialSettings.store_lng || 72.977272);
+      setGeofenceRadius(initialSettings.geofence_radius || 150);
     }
   };
 
@@ -385,15 +385,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onSettingsSaved }) =
 
       {/* Sticky Bottom Save Changes Bar */}
       {hasChanges && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#22201C] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-200 border border-[#3D3A34]">
-          <span className="text-xs font-bold text-[#ECE7DF]">
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#0A0A0A] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-200 border border-[#262626]">
+          <span className="text-xs font-bold text-white/90">
             You have unsaved changes
           </span>
 
           <div className="flex items-center gap-2">
             <button
               onClick={handleDiscard}
-              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#A8A298] hover:text-white transition-colors cursor-pointer"
+              className="glass-btn px-3 py-2 rounded-xl text-xs font-semibold text-white/80 hover:text-white cursor-pointer min-h-[44px]"
             >
               Discard
             </button>
@@ -401,7 +401,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onSettingsSaved }) =
             <button
               onClick={handleSaveAll}
               disabled={saving}
-              className="px-4 py-1.5 rounded-xl bg-[#2F7D4F] hover:bg-[#276842] text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+              className="glass-btn-primary px-4 py-2 rounded-xl text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 min-h-[44px]"
             >
               {saving ? 'Saving...' : 'Save changes'}
             </button>

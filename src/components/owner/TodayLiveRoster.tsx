@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api';
+import { api, getTodayDateStr } from '../../api';
 import { RosterResponse, RosterItem, Employee } from '../../types';
 import { ManualPunchModal } from './ManualPunchModal';
 import { CafeLocationModal } from '../common/CafeLocationModal';
@@ -49,7 +49,7 @@ export const TodayLiveRoster: React.FC<TodayLiveRosterProps> = ({ employees }) =
   const fetchRoster = async (showRefresh = false) => {
     try {
       if (showRefresh) setIsRefreshing(true);
-      const res = await api.getTodayRoster('2026-11-15');
+      const res = await api.getTodayRoster(getTodayDateStr());
       setData(res);
     } catch (err) {
       console.error('Failed to load today roster:', err);
@@ -139,28 +139,28 @@ export const TodayLiveRoster: React.FC<TodayLiveRosterProps> = ({ employees }) =
           <p className="text-base font-bold text-[#22201C] tracking-tight">
             "{summaryLine}"
           </p>
-          <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[#7A746A]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#2F7D4F]" />
-            <span>Sparta Building Geofence (30m) Active · 1-Tap Shift Controls Ready</span>
+          <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[#6E6E6A]">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#0A0A0A]" />
+            <span>Meats &amp; Plants Thane Geofence (150m) Active · 1-Tap Shift Controls Ready</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => api.downloadAttendanceCsv('2026-11-15')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#ECE7DF] text-xs font-semibold text-[#22201C] hover:bg-[#F6F2EA] shadow-2xs transition-colors cursor-pointer"
+            onClick={() => api.downloadAttendanceCsv(getTodayDateStr())}
+            className="glass-btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#0A0A0A] shadow-xs transition-colors cursor-pointer min-h-[44px]"
             title="Download today's attendance & timings CSV"
           >
-            <Download size={13} className="text-[#2F7D4F]" />
+            <Download size={13} className="text-[#0A0A0A]" />
             <span>Export CSV</span>
           </button>
 
           <button
             onClick={() => setLocationModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#C6E7D1] text-xs font-bold text-[#23633E] hover:bg-[#EAF5EE] shadow-2xs transition-colors cursor-pointer"
+            className="glass-btn-primary flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white shadow-xs transition-colors cursor-pointer min-h-[44px]"
             title="Open interactive map to set café location and radius"
           >
-            <MapPin size={13} className="text-[#2F7D4F]" />
+            <MapPin size={13} className="text-white" />
             <span>📍 Set Café Location</span>
           </button>
 

@@ -32,10 +32,10 @@ interface CafeLocationPickerProps {
 }
 
 export const CafeLocationPicker: React.FC<CafeLocationPickerProps> = ({
-  initialLat = 19.2604227,
-  initialLng = 72.9794437,
-  initialRadius = 75,
-  initialAddress = 'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607',
+  initialLat = 19.2584498,
+  initialLng = 72.977272,
+  initialRadius = 150,
+  initialAddress = 'Shop No. 21, Hiranandani Estate, Thane',
   onSaved,
   onClose,
   isModal = false

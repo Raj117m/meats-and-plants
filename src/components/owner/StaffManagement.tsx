@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api';
+import { api, getTodayDateStr } from '../../api';
 import { Employee, LeaveRequest } from '../../types';
 import { formatINR } from '../../utils/currency';
 import { formatTime12, formatDuration } from '../../utils/time';
@@ -73,7 +73,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
 
   const loadTodayRoster = async () => {
     try {
-      const res = await api.getTodayRoster('2026-11-15');
+      const res = await api.getTodayRoster(getTodayDateStr());
       const map: Record<number, any> = {};
       for (const r of res.roster) {
         map[r.id] = r;
@@ -94,7 +94,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
     try {
       setExportingCsv(true);
       if (period === 'today') {
-        api.downloadAttendanceCsv('2026-11-15');
+        api.downloadAttendanceCsv(getTodayDateStr());
       } else {
         api.downloadAttendanceCsv(undefined, '2026-11');
       }
@@ -397,8 +397,8 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
               <div className="pt-2 border-t border-[#ECE7DF] flex flex-col gap-1.5 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-[#7A746A] uppercase tracking-wider flex items-center gap-1">
-                    <Clock size={11} className="text-[#2F7D4F]" />
-                    <span>Today's Shift Log (15 Nov)</span>
+                    <Clock size={11} className="text-[#0A0A0A]" />
+                    <span>Today's Shift Log ({new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})</span>
                   </span>
                   {todayItem ? (
                     <span
@@ -532,11 +532,13 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
         })}
       </div>
 
-      {/* Leave Approval Side Drawer (Staff Page) */}
+      {/* Leave Approval Side Drawer (Staff Page) - Mobile Bottom Sheet / Desktop Drawer */}
       {activeLeaveDrawer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-sm h-full p-6 shadow-2xl flex flex-col justify-between border-l border-[#ECE7DF] animate-in slide-in-from-right duration-200">
-            <div className="space-y-5">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:justify-end bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-lg md:max-w-sm max-h-[90vh] md:h-full p-6 shadow-2xl flex flex-col justify-between border-t md:border-t-0 md:border-l border-[#E6E6E2] rounded-t-3xl md:rounded-none animate-in slide-in-from-bottom md:slide-in-from-right duration-200">
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden w-12 h-1.5 bg-[#D4D4D0] rounded-full mx-auto mb-3" />
+            <div className="space-y-5 overflow-y-auto">
               <div className="flex items-start justify-between pb-3 border-b border-[#ECE7DF]">
                 <div>
                   <h3 className="text-lg font-bold text-[#22201C]">
@@ -602,13 +604,13 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => handleReviewLeave('approved')}
-                  className="py-2.5 rounded-xl bg-[#2F7D4F] hover:bg-[#276842] text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                  className="glass-btn-primary min-h-[44px] py-2.5 rounded-xl text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
                 >
                   Approve Leave
                 </button>
                 <button
                   onClick={() => handleReviewLeave('denied')}
-                  className="py-2.5 rounded-xl bg-[#FDF0ED] hover:bg-[#FBE9E7] text-[#A8382B] border border-[#F8D0C8] text-xs font-bold transition-all cursor-pointer"
+                  className="glass-btn min-h-[44px] py-2.5 rounded-xl text-[#A8382B] border border-[#F8D0C8] text-xs font-bold transition-all cursor-pointer"
                 >
                   Deny
                 </button>
@@ -621,7 +623,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-2.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#128C7E] border border-[#25D366]/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                className="w-full min-h-[44px] py-2.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#128C7E] border border-[#25D366]/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
               >
                 <MessageCircle size={15} />
                 <span>Message on WhatsApp</span>
@@ -631,10 +633,12 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
         </div>
       )}
 
-      {/* Edit Staff Modal with Pay Type Toggle */}
+      {/* Edit Staff Modal / Bottom Sheet */}
       {editingEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md warm-card animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto warm-card animate-in slide-in-from-bottom md:zoom-in-95 duration-150">
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden w-12 h-1.5 bg-[#D4D4D0] rounded-full mx-auto mb-3" />
             <div className="flex items-center justify-between pb-3 border-b border-[#ECE7DF]">
               <div>
                 <h3 className="text-lg font-bold text-[#22201C]">
@@ -642,7 +646,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 </h3>
                 <p className="text-xs text-[#7A746A]">{editingEmp.name}</p>
               </div>
-              <button onClick={() => setEditingEmp(null)} className="p-1 text-[#7A746A] cursor-pointer">
+              <button onClick={() => setEditingEmp(null)} className="p-2 text-[#7A746A] cursor-pointer">
                 <X size={18} />
               </button>
             </div>
@@ -764,14 +768,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingEmp(null)}
-                  className="px-4 py-2 text-[#7A746A] cursor-pointer"
+                  className="glass-btn min-h-[44px] px-4 py-2 text-[#7A746A] hover:text-[#0A0A0A] cursor-pointer rounded-xl font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 rounded-xl bg-[#2F7D4F] hover:bg-[#276842] text-white font-bold cursor-pointer"
+                  className="glass-btn-primary min-h-[44px] px-5 py-2 rounded-xl text-white font-bold cursor-pointer shadow-xs active:scale-95"
                 >
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -781,15 +785,17 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
         </div>
       )}
 
-      {/* Add Staff Modal */}
+      {/* Add Staff Modal / Bottom Sheet */}
       {addModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md warm-card animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto warm-card animate-in slide-in-from-bottom md:zoom-in-95 duration-150">
+            {/* Mobile Drag Handle */}
+            <div className="md:hidden w-12 h-1.5 bg-[#D4D4D0] rounded-full mx-auto mb-3" />
             <div className="flex items-center justify-between pb-3 border-b border-[#ECE7DF]">
               <h3 className="text-lg font-bold text-[#22201C]">
                 Add New Staff Member
               </h3>
-              <button onClick={() => setAddModalOpen(false)} className="p-1 text-[#7A746A] cursor-pointer">
+              <button onClick={() => setAddModalOpen(false)} className="p-2 text-[#7A746A] cursor-pointer">
                 <X size={18} />
               </button>
             </div>
@@ -839,7 +845,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                       type="button"
                       onClick={() => setNewPayType('daily')}
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer ${
-                        newPayType === 'daily' ? 'bg-[#2F7D4F] text-white' : 'text-[#7A746A]'
+                        newPayType === 'daily' ? 'bg-[#0A0A0A] text-white' : 'text-[#7A746A]'
                       }`}
                     >
                       Daily
@@ -848,7 +854,7 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                       type="button"
                       onClick={() => setNewPayType('monthly')}
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer ${
-                        newPayType === 'monthly' ? 'bg-[#2F7D4F] text-white' : 'text-[#7A746A]'
+                        newPayType === 'monthly' ? 'bg-[#0A0A0A] text-white' : 'text-[#7A746A]'
                       }`}
                     >
                       Monthly
@@ -883,14 +889,14 @@ export const StaffManagement: React.FC<StaffManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setAddModalOpen(false)}
-                  className="px-4 py-2 text-[#7A746A] cursor-pointer"
+                  className="glass-btn min-h-[44px] px-4 py-2 text-[#7A746A] hover:text-[#0A0A0A] cursor-pointer rounded-xl font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 rounded-xl bg-[#2F7D4F] hover:bg-[#276842] text-white font-bold cursor-pointer"
+                  className="glass-btn-primary min-h-[44px] px-5 py-2 rounded-xl text-white font-bold cursor-pointer shadow-xs active:scale-95"
                 >
                   {saving ? 'Adding...' : 'Add Employee'}
                 </button>

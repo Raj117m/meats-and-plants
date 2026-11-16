@@ -261,14 +261,79 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Main Table — Clean Accounting Statement */}
+      {/* 3. Main Table / Mobile Cards — Clean Accounting Statement */}
       <div className="rounded-xl border border-[#E6E6E2] bg-[#FFFFFF] overflow-hidden shadow-2xs">
-        <div className="px-5 py-3.5 border-b border-[#E6E6E2] flex items-center justify-between">
+        <div className="px-4 sm:px-5 py-3.5 border-b border-[#E6E6E2] flex items-center justify-between">
           <span className="section-label">Employee Payroll Ledger</span>
-          <span className="text-[11px] text-[#6E6E6A]">Click any row to open full payslip drawer</span>
+          <span className="text-[11px] text-[#6E6E6A]">Tap any row to view payslip</span>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile View (<768px): Clean Stacked Cards */}
+        <div className="md:hidden divide-y divide-[#E6E6E2]">
+          {employees.map((emp) => (
+            <div
+              key={emp.employeeId}
+              onClick={() => {
+                setSelectedEmp(emp);
+                setModalOpen(true);
+              }}
+              className="p-4 space-y-3 cursor-pointer hover:bg-[#FAFAF8] transition-colors"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-sm font-bold text-[#0A0A0A]">{emp.employeeName}</div>
+                  <div className="text-[11px] text-[#6E6E6A]">{emp.role} · ₹{emp.dailyWage}/day</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-base font-extrabold text-[#0A0A0A] tabular-nums">
+                    {formatINR(emp.netSalary || emp.netPay)}
+                  </div>
+                  <div className="text-[10px] text-[#6E6E6A]">Net payable</div>
+                </div>
+              </div>
+
+              {/* Badges strip */}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded-md bg-[#FAFAF8] border border-[#E6E6E2] text-[#2E7D4F] font-semibold tabular-nums">
+                  {emp.presentDays}d present
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-[#FAFAF8] border border-[#E6E6E2] text-[#3B5BA9] font-semibold tabular-nums">
+                  {emp.paidLeavesUsed}d leave
+                </span>
+                {(emp.holidaysCount || 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#FAFAF8] border border-[#B0235F] text-[#B0235F] font-semibold tabular-nums">
+                    {emp.holidaysCount}d holiday
+                  </span>
+                )}
+                {(emp.halfDaysCount || 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#FAFAF8] border border-[#B7791F] text-[#B7791F] font-semibold tabular-nums">
+                    {emp.halfDaysCount}d half
+                  </span>
+                )}
+                {(emp.unpaidDays || 0) > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#FAFAF8] border border-[#B42318] text-[#B42318] font-semibold tabular-nums">
+                    {emp.unpaidDays}d unpaid
+                  </span>
+                )}
+              </div>
+
+              {/* View Payslip Button (min 44px tap target) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedEmp(emp);
+                  setModalOpen(true);
+                }}
+                className="w-full py-2.5 px-3 rounded-xl glass-btn text-[#0A0A0A] font-semibold text-xs flex items-center justify-center gap-1.5 min-h-[44px] cursor-pointer"
+              >
+                <span>View Full Payslip</span>
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop View (>=768px): Full Accounting Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead>
               {/* Grouped Header Row */}

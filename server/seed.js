@@ -40,19 +40,20 @@ export function seedData(force = false) {
     ) VALUES (
       1, '12:00', '00:00', 15, 3,
       3, 180, 4,
-      'pay', '00:00', 'ABHIGIT 5G', 'Meats & Plants', '1234',
-      'meats2026', 'Abhigit', 1, 19.2604227, 72.9794437, 30,
-      'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607', 1
+      'pay', '00:00', 'ABHIGIT 5G', 'Meats & Plants Thane', '1234',
+      'meats2026', 'Abhigit', 1, 19.2584498, 72.977272, 150,
+      'Shop No. 21, Hiranandani Estate, Thane', 1
     )
     ON CONFLICT(id) DO UPDATE SET
       owner_password = 'meats2026',
       owner_name = 'Abhigit',
       allowed_ssids = 'ABHIGIT 5G',
       leave_approval_required = 1,
-      store_lat = 19.2604227,
-      store_lng = 72.9794437,
-      geofence_radius = 30,
-      store_address = 'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607',
+      cafe_name = 'Meats & Plants Thane',
+      store_lat = 19.2584498,
+      store_lng = 72.977272,
+      geofence_radius = 150,
+      store_address = 'Shop No. 21, Hiranandani Estate, Thane',
       allow_offsite_checkout = 1
   `).run();
 

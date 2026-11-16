@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../api';
 import { Employee, DayRecord, LeaveRequest, PayrollEmployee, Holiday } from '../../types';
 import { AttendanceDrawer } from './AttendanceDrawer';
@@ -67,6 +67,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     x: number;
     y: number;
   } | null>(null);
+  const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchMonthData = async () => {
     try {
@@ -125,8 +126,22 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     onMonthChange('2026-11');
   };
 
+  // Auto-scroll to today column with momentum on load / month change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const todayEl = document.getElementById('att-col-today');
+      if (todayEl) {
+        todayEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [selectedMonth, loading]);
+
   const daysCount = new Date(year, monthNum, 0).getDate();
   const daysList = Array.from({ length: daysCount }, (_, i) => i + 1);
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const isCurrentMonth = selectedMonth === todayDateStr.slice(0, 7);
+  const currentDayNum = isCurrentMonth ? Number(todayDateStr.slice(8, 10)) : 16;
 
   // Open day edit drawer
   const handleCellClick = (emp: Employee, dayNum: number) => {
@@ -297,16 +312,17 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                 Staff (Click for profile)
               </th>
               {daysList.map((d) => {
-                const isToday = selectedMonth === '2026-11' && d === 15;
+                const isToday = isCurrentMonth && d === currentDayNum;
                 return (
                   <th
                     key={d}
+                    id={isToday ? "att-col-today" : undefined}
                     className={`py-2 px-1 text-center text-[11px] font-semibold ${
-                      isToday ? 'text-[#23633E] font-bold bg-[#EAF5EE]' : 'text-[#7A746A]'
+                      isToday ? 'text-[#0A0A0A] font-bold bg-[#F2F2EF]' : 'text-[#6E6E6A]'
                     }`}
                   >
                     {d}
-                    {isToday && <span className="block text-[8px] font-bold uppercase text-[#23633E]">Today</span>}
+                    {isToday && <span className="block text-[8px] font-bold uppercase text-[#0A0A0A]">Today</span>}
                   </th>
                 );
               })}
@@ -354,7 +370,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                     const dateStr = `${selectedMonth}-${String(dayNum).padStart(2, '0')}`;
                     const record = dayMap[`${emp.id}_${dateStr}`];
                     const status = record?.status;
-                    const isToday = selectedMonth === '2026-11' && dayNum === 15;
+                    const isToday = isCurrentMonth && dayNum === currentDayNum;
                     const holiday = holidays.find((h) => h.date === dateStr);
 
                     const isPending = pendingLeaves.some(
@@ -407,6 +423,27 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                           });
                         }}
                         onMouseLeave={() => setHoveredCell(null)}
+                        onTouchStart={(e) => {
+                          const target = e.currentTarget;
+                          touchTimerRef.current = setTimeout(() => {
+                            const rect = target.getBoundingClientRect();
+                            setHoveredCell({
+                              emp,
+                              dateStr,
+                              record: record || null,
+                              isPending,
+                              holiday,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top - 8
+                            });
+                          }, 350);
+                        }}
+                        onTouchEnd={() => {
+                          if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+                        }}
+                        onTouchMove={() => {
+                          if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+                        }}
                       >
                         <button
                           onClick={() => handleCellClick(emp, dayNum)}

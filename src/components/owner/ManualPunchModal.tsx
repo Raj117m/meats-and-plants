@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '../../api';
+import { api, getTodayDateStr } from '../../api';
 import { Employee } from '../../types';
 import { Clock, ShieldAlert, X, Check } from 'lucide-react';
 
@@ -22,7 +22,7 @@ export const ManualPunchModal: React.FC<ManualPunchModalProps> = ({
 }) => {
   const [selectedEmpId, setSelectedEmpId] = useState<number>(employee?.id || employees[0]?.id || 1);
   const [type, setType] = useState<'check_in' | 'start_break' | 'end_break' | 'check_out'>(initialType);
-  const [date, setDate] = useState('2026-11-15');
+  const [date, setDate] = useState(getTodayDateStr());
   const [time, setTime] = useState('12:00');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);

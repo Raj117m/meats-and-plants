@@ -36,16 +36,16 @@ export function validateGeofence({
   lat,
   lng,
   accuracy = 0,
-  storeLat = 19.2604227,
-  storeLng = 72.9794437,
-  radiusMeters = 75
+  storeLat = 19.2584498,
+  storeLng = 72.977272,
+  radiusMeters = 150
 }) {
   const numLat = Number(lat);
   const numLng = Number(lng);
   const numAcc = accuracy != null ? Number(accuracy) : 0;
   const numStoreLat = Number(storeLat);
   const numStoreLng = Number(storeLng);
-  const numRadius = Number(radiusMeters) || 75;
+  const numRadius = Number(radiusMeters) || 150;
 
   if (isNaN(numLat) || isNaN(numLng)) {
     return { allowed: false, distance: Infinity, error: 'Location coordinates are required.' };
@@ -61,13 +61,13 @@ export function validateGeofence({
     };
   }
 
-  // Sparta Building Complex perimeter (Hiranandani Estate, Thane West)
-  const isStoreAtSparta = Math.abs(numStoreLat - 19.2604227) < 0.005 && Math.abs(numStoreLng - 72.9794437) < 0.005;
-  const isInsideSpartaBox = isStoreAtSparta && (numLat >= 19.2580 && numLat <= 19.2630 && numLng >= 72.9770 && numLng <= 72.9820);
+  // Hiranandani Estate, Thane West perimeter
+  const isStoreAtHiranandani = Math.abs(numStoreLat - 19.2584498) < 0.005 && Math.abs(numStoreLng - 72.977272) < 0.005;
+  const isInsideHiranandaniBox = isStoreAtHiranandani && (numLat >= 19.2550 && numLat <= 19.2630 && numLng >= 72.9730 && numLng <= 72.9820);
 
   const effectiveDistance = distance - Math.min(numAcc, 50);
 
-  if (isInsideSpartaBox || effectiveDistance <= numRadius || distance <= numRadius) {
+  if (isInsideHiranandaniBox || effectiveDistance <= numRadius || distance <= numRadius) {
     return { allowed: true, distance, error: null };
   }
 

@@ -40,10 +40,10 @@ export const CafeLocationModal: React.FC<CafeLocationModalProps> = ({
         </div>
 
         <CafeLocationPicker
-          initialLat={settings?.store_lat ?? 19.2604227}
-          initialLng={settings?.store_lng ?? 72.9794437}
-          initialRadius={settings?.geofence_radius ?? 75}
-          initialAddress={settings?.store_address ?? 'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607'}
+          initialLat={settings?.store_lat ?? 19.2584498}
+          initialLng={settings?.store_lng ?? 72.977272}
+          initialRadius={settings?.geofence_radius ?? 150}
+          initialAddress={settings?.store_address ?? 'Shop No. 21, Hiranandani Estate, Thane'}
           onSaved={(newSettings) => {
             if (onSaved) onSaved(newSettings);
           }}

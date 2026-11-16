@@ -26,7 +26,7 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
 }) => {
   if (!isOpen || !dateStr) return null;
 
-  const todayStr = '2026-11-15';
+  const todayStr = new Date().toISOString().split('T')[0];
   const isFuture = dateStr > todayStr;
   const isPastOrToday = !isFuture;
 

@@ -16,7 +16,7 @@ export const PunchFixModal: React.FC<PunchFixModalProps> = ({
   onSuccess
 }) => {
   const [type, setType] = useState<'check_in' | 'start_break' | 'end_break' | 'check_out'>('check_in');
-  const [date, setDate] = useState('2026-11-15');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('12:00');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);

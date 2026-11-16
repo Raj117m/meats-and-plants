@@ -145,11 +145,11 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
       const dist = calculateDistanceMeters(pos.lat, pos.lng, storeCoords.lat, storeCoords.lng);
       const effectiveDist = dist - Math.min(pos.accuracy || 0, 50);
 
-      const isStoreAtSparta = Math.abs(storeCoords.lat - 19.2604227) < 0.005 && Math.abs(storeCoords.lng - 72.9794437) < 0.005;
-      const isInsideSpartaBox = isStoreAtSparta && (pos.lat >= 19.2580 && pos.lat <= 19.2630 && pos.lng >= 72.9770 && pos.lng <= 72.9820);
+      const isStoreAtHiranandani = Math.abs(storeCoords.lat - 19.2584498) < 0.005 && Math.abs(storeCoords.lng - 72.977272) < 0.005;
+      const isInsideHiranandaniBox = isStoreAtHiranandani && (pos.lat >= 19.2550 && pos.lat <= 19.2630 && pos.lng >= 72.9730 && pos.lng <= 72.9820);
 
-      if (!isInsideSpartaBox && effectiveDist > storeCoords.radius && dist > storeCoords.radius) {
-        setErrorMessage(`📍 You are ${formatDistance(dist)} from Sparta Building. Must be inside Meats & Plants (${storeCoords.radius}m) to start shift.`);
+      if (!isInsideHiranandaniBox && effectiveDist > storeCoords.radius && dist > storeCoords.radius) {
+        setErrorMessage(`📍 You are ${formatDistance(dist)} from Meats & Plants Thane. Must be inside the café zone (${storeCoords.radius}m) to start shift.`);
         return;
       }
 
@@ -184,11 +184,11 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
       const dist = calculateDistanceMeters(pos.lat, pos.lng, storeCoords.lat, storeCoords.lng);
       const effectiveDist = dist - Math.min(pos.accuracy || 0, 50);
 
-      const isStoreAtSparta = Math.abs(storeCoords.lat - 19.2604227) < 0.005 && Math.abs(storeCoords.lng - 72.9794437) < 0.005;
-      const isInsideSpartaBox = isStoreAtSparta && (pos.lat >= 19.2580 && pos.lat <= 19.2630 && pos.lng >= 72.9770 && pos.lng <= 72.9820);
+      const isStoreAtHiranandani = Math.abs(storeCoords.lat - 19.2584498) < 0.005 && Math.abs(storeCoords.lng - 72.977272) < 0.005;
+      const isInsideHiranandaniBox = isStoreAtHiranandani && (pos.lat >= 19.2550 && pos.lat <= 19.2630 && pos.lng >= 72.9730 && pos.lng <= 72.9820);
 
-      if (!isInsideSpartaBox && effectiveDist > storeCoords.radius && dist > storeCoords.radius) {
-        setErrorMessage(`📍 You are ${formatDistance(dist)} away from the café. Must be inside to start break.`);
+      if (!isInsideHiranandaniBox && effectiveDist > storeCoords.radius && dist > storeCoords.radius) {
+        setErrorMessage(`📍 You are ${formatDistance(dist)} away from Meats & Plants Thane. Must be inside to start break.`);
         return;
       }
 
@@ -343,8 +343,8 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
         </div>
       )}
 
-      {/* Section 1 & 9: Circular Timer Dial */}
-      <div className="p-6 rounded-xl bg-white border border-[#E6E6E2] text-center shadow-2xs">
+      {/* Section 1 & 9: Circular Timer Dial / Morphing Glass Start Button */}
+      <div className="p-6 rounded-2xl bg-white border border-[#E6E6E2] text-center shadow-2xs">
         <div className="relative w-56 h-56 mx-auto flex items-center justify-center">
           <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 200 200">
             {/* Background hairline track */}
@@ -373,62 +373,74 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
             )}
           </svg>
 
-          {/* Central tabular time display */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="section-label mb-1">
-              {currentStatus === 'NOT_STARTED' && 'READY FOR SHIFT'}
-              {currentStatus === 'ON_SHIFT' && 'WORKED TODAY'}
-              {currentStatus === 'ON_BREAK' && 'BREAK REMAINING'}
-              {currentStatus === 'ENDED' && 'SHIFT COMPLETED'}
-            </span>
+          {/* Central area: Morphing Large Circular Glass Start Button OR Live Timer */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-3">
+            {currentStatus === 'NOT_STARTED' ? (
+              <button
+                onClick={handleStartShift}
+                disabled={loading}
+                className="w-40 h-40 rounded-full glass-btn-primary animate-breathing-glow flex flex-col items-center justify-center p-3 transition-all duration-300 cursor-pointer disabled:opacity-60 group shadow-md"
+                title="Tap to punch in and start shift"
+              >
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                  {loading ? (
+                    <RefreshCw size={20} className="animate-spin text-white" />
+                  ) : (
+                    <Play size={20} fill="currentColor" className="text-white ml-0.5" />
+                  )}
+                </div>
+                <span className="text-sm font-bold tracking-tight text-white">
+                  {loading ? 'Finding you…' : 'Start Shift'}
+                </span>
+                <span className="text-[10px] text-white/70 mt-0.5">
+                  {loading ? 'Checking GPS ±150m' : 'Tap to Punch In'}
+                </span>
+              </button>
+            ) : (
+              <div className="flex flex-col items-center justify-center animate-scale-in">
+                <span className="section-label mb-1">
+                  {currentStatus === 'ON_SHIFT' && 'WORKED TODAY'}
+                  {currentStatus === 'ON_BREAK' && 'BREAK REMAINING'}
+                  {currentStatus === 'ENDED' && 'SHIFT COMPLETED'}
+                </span>
 
-            <div className="font-semibold text-3xl tracking-tight text-[#0A0A0A] tabular-nums">
-              {currentStatus === 'ON_BREAK'
-                ? formatCountdown(liveBreakSecondsLeft)
-                : formatDuration(liveWorkedSeconds)}
-            </div>
+                <div className="font-semibold text-3xl tracking-tight text-[#0A0A0A] tabular-nums">
+                  {currentStatus === 'ON_BREAK'
+                    ? formatCountdown(liveBreakSecondsLeft)
+                    : formatDuration(liveWorkedSeconds)}
+                </div>
 
-            <div className="mt-1 text-xs text-[#6E6E6A] flex items-center gap-1.5">
-              {currentStatus === 'NOT_STARTED' && (
-                <span>Shift starts at 12:00 PM</span>
-              )}
-              {currentStatus === 'ON_SHIFT' && (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full status-dot-present" />
-                  <span>On floor · Shift running</span>
-                </>
-              )}
-              {currentStatus === 'ON_BREAK' && (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full status-dot-break animate-pulse" />
-                  <span>On 3-hr break</span>
-                </>
-              )}
-              {currentStatus === 'ENDED' && (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full status-dot-present" />
-                  <span>Total {formatDuration(liveWorkedSeconds)}</span>
-                </>
-              )}
-            </div>
+                <div className="mt-1 text-xs text-[#6E6E6A] flex items-center gap-1.5">
+                  {currentStatus === 'ON_SHIFT' && (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full status-dot-present" />
+                      <span>On floor · Shift running</span>
+                    </>
+                  )}
+                  {currentStatus === 'ON_BREAK' && (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full status-dot-break animate-pulse" />
+                      <span>On 3-hr break</span>
+                    </>
+                  )}
+                  {currentStatus === 'ENDED' && (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full status-dot-present" />
+                      <span>Total {formatDuration(liveWorkedSeconds)}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Action Controls */}
         <div className="mt-6 pt-5 border-t border-[#E6E6E2] space-y-2.5">
           {currentStatus === 'NOT_STARTED' && (
-            <button
-              onClick={handleStartShift}
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-xl bg-[#0A0A0A] text-white hover:bg-[#222222] font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? (
-                <RefreshCw size={16} className="animate-spin text-white" />
-              ) : (
-                <Play size={16} fill="currentColor" />
-              )}
-              <span>{loading ? 'Verifying location…' : 'Start Shift'}</span>
-            </button>
+            <p className="text-xs text-[#6E6E6A]">
+              Tap the circular black glass button above to punch in within 150m of Meats &amp; Plants Thane
+            </p>
           )}
 
           {currentStatus === 'ON_SHIFT' && (
@@ -437,9 +449,9 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
                 <button
                   onClick={handleStartBreak}
                   disabled={loading}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E6E6E2] text-[#0A0A0A] hover:bg-[#F2F2EF] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full py-3 px-4 rounded-xl glass-btn text-[#0A0A0A] font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 min-h-[44px]"
                 >
-                  <Coffee size={14} className="text-[#B7791F]" />
+                  <Coffee size={15} className="text-[#B7791F]" />
                   <span>{loading ? 'Checking location…' : 'Start 3-Hour Break'}</span>
                 </button>
               ) : (
@@ -451,9 +463,9 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
               <button
                 onClick={handleEndShift}
                 disabled={loading}
-                className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E6E6E2] text-[#B42318] hover:bg-[#F2F2EF] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-3 px-4 rounded-xl glass-btn text-[#B42318] hover:bg-[#F2F2EF] font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 min-h-[44px]"
               >
-                <LogOut size={14} />
+                <LogOut size={15} />
                 <span>End Shift</span>
               </button>
             </div>
@@ -464,7 +476,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
               <button
                 onClick={handleEndBreak}
                 disabled={loading}
-                className="w-full py-3 px-4 rounded-xl bg-[#0A0A0A] text-white hover:bg-[#222222] font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-3 px-4 rounded-xl glass-btn-primary font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 min-h-[44px]"
               >
                 <CheckCircle2 size={16} />
                 <span>{loading ? 'Ending break…' : 'End Break & Back to Floor'}</span>
@@ -473,9 +485,10 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
               <button
                 onClick={handleEndShift}
                 disabled={loading}
-                className="w-full py-2 text-xs text-[#B42318] hover:underline transition-all cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl glass-btn text-[#B42318] hover:bg-[#F2F2EF] font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 min-h-[44px]"
               >
-                End shift now (closes break)
+                <LogOut size={15} />
+                <span>End shift now (closes break)</span>
               </button>
             </div>
           )}
