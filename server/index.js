@@ -427,12 +427,20 @@ app.put('/api/employees/:id', (req, res) => {
 });
 
 // -------------------------------------------------------------
+function getTodayDateStr() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // -------------------------------------------------------------
 // LIVE ROSTER & TODAY STATUS (Section 1 State Machine)
 // -------------------------------------------------------------
 app.get('/api/roster/today', (req, res) => {
   try {
-    const date = req.query.date || '2026-11-15';
+    const date = req.query.date || getTodayDateStr();
     const settings = getSettings();
     const employees = db.prepare('SELECT * FROM employees WHERE is_active = 1 ORDER BY id ASC').all();
 
@@ -527,7 +535,7 @@ app.get('/api/roster/today', (req, res) => {
 app.get('/api/today/:employeeId', (req, res) => {
   try {
     const employeeId = Number(req.params.employeeId);
-    const date = req.query.date || '2026-11-15';
+    const date = req.query.date || getTodayDateStr();
     const settings = getSettings();
 
     const emp = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId);
@@ -728,7 +736,7 @@ app.get('/api/attendance/export-csv', (req, res) => {
 // Reset today's roster for live trial testing
 app.post('/api/roster/reset-today', (req, res) => {
   try {
-    const date = req.body?.date || '2026-11-15';
+    const date = req.body?.date || getTodayDateStr();
     db.prepare('DELETE FROM punches WHERE date = ?').run(date);
     db.prepare('DELETE FROM days WHERE date = ?').run(date);
     res.json({
@@ -743,7 +751,7 @@ app.post('/api/roster/reset-today', (req, res) => {
 app.post('/api/roster/reset-employee-today', (req, res) => {
   try {
     const employee_id = req.body.employee_id || req.body.employeeId;
-    const date = req.body.date || '2026-11-15';
+    const date = req.body.date || getTodayDateStr();
     db.prepare('DELETE FROM punches WHERE employee_id = ? AND date = ?').run(employee_id, date);
     db.prepare('DELETE FROM days WHERE employee_id = ? AND date = ?').run(employee_id, date);
     res.json({
@@ -778,15 +786,15 @@ function handleUnifiedPunch(req, res) {
     if (!emp) return res.status(404).json({ error: 'Employee not found.' });
 
     const settings = getSettings();
+    const date = req.body.date || (customTime && customTime.includes('T') ? customTime.split('T')[0] : getTodayDateStr());
     let timestamp = customTime;
     if (!timestamp) {
-      timestamp = new Date().toISOString();
+      const nowIso = new Date().toISOString();
+      timestamp = nowIso.startsWith(date) ? nowIso : `${date}T${nowIso.split('T')[1] || '12:00:00.000Z'}`;
     } else if (!timestamp.includes('T')) {
-      const datePart = req.body.date || '2026-11-15';
       const formattedTime = timestamp.length === 5 ? `${timestamp}:00` : timestamp;
-      timestamp = `${datePart}T${formattedTime}`;
+      timestamp = `${date}T${formattedTime}`;
     }
-    const date = timestamp.split('T')[0];
 
     // Fetch existing punches and day record for today
     const existingPunches = db.prepare('SELECT * FROM punches WHERE employee_id = ? AND date = ? ORDER BY timestamp ASC').all(employeeId, date);

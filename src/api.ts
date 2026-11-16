@@ -31,7 +31,15 @@ function saveLocalPunches(punches: any[]) {
   } catch {}
 }
 
-function computeLocalDayState(employeeId: number, date: string = '2026-11-15'): DayState {
+export const getTodayDateStr = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+function computeLocalDayState(employeeId: number, date: string = getTodayDateStr()): DayState {
   const punches = getLocalPunches().filter((p) => p.employee_id === employeeId && p.date === date);
   const checkIn = punches.find((p) => p.type === 'check_in');
   const checkOut = punches.find((p) => p.type === 'check_out');
@@ -111,7 +119,7 @@ function computeLocalDayState(employeeId: number, date: string = '2026-11-15'): 
   };
 }
 
-function computeLocalRoster(date: string = '2026-11-15'): RosterResponse {
+function computeLocalRoster(date: string = getTodayDateStr()): RosterResponse {
   let onFloor = 0;
   let onBreak = 0;
   let notInYet = 0;
@@ -353,7 +361,7 @@ export const api = {
   },
 
   // Roster & Today State (Section 1)
-  async getTodayRoster(date: string = '2026-11-15'): Promise<RosterResponse> {
+  async getTodayRoster(date: string = getTodayDateStr()): Promise<RosterResponse> {
     try {
       const res = await fetch(`${API_BASE}/roster/today?date=${date}`);
       return await handleResponse<RosterResponse>(res);
@@ -362,7 +370,7 @@ export const api = {
     }
   },
 
-  async getTodayState(employeeId: number, date: string = '2026-11-15'): Promise<DayState> {
+  async getTodayState(employeeId: number, date: string = getTodayDateStr()): Promise<DayState> {
     try {
       const res = await fetch(`${API_BASE}/today/${employeeId}?date=${date}`);
       return await handleResponse<DayState>(res);
@@ -371,7 +379,7 @@ export const api = {
     }
   },
 
-  async resetTodayRoster(date: string = '2026-11-15'): Promise<{ success: boolean; message: string }> {
+  async resetTodayRoster(date: string = getTodayDateStr()): Promise<{ success: boolean; message: string }> {
     try {
       const res = await fetch(`${API_BASE}/roster/reset-today`, {
         method: 'POST',
@@ -386,7 +394,7 @@ export const api = {
     }
   },
 
-  async resetEmployeeToday(employee_id: number, date: string = '2026-11-15'): Promise<{ success: boolean; message: string }> {
+  async resetEmployeeToday(employee_id: number, date: string = getTodayDateStr()): Promise<{ success: boolean; message: string }> {
     try {
       const res = await fetch(`${API_BASE}/roster/reset-employee-today`, {
         method: 'POST',
@@ -415,6 +423,7 @@ export const api = {
     reason?: string;
     time?: string;
     custom_time?: string;
+    date?: string;
   }): Promise<DayState & { success: boolean; punch?: any }> {
     const empId = payload.employeeId || payload.employee_id!;
     const action = payload.action || payload.type!;
@@ -427,7 +436,8 @@ export const api = {
       accuracy: payload.accuracy,
       notes: payload.notes,
       reason: payload.reason,
-      time: payload.time || payload.custom_time
+      time: payload.time || payload.custom_time,
+      date: payload.date || getTodayDateStr()
     };
 
     try {

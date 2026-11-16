@@ -53,7 +53,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
   const fetchState = async () => {
     if (!currentStaff?.id) return;
     try {
-      const state = await api.getTodayState(currentStaff.id, '2026-11-15');
+      const state = await api.getTodayState(currentStaff.id);
       setDayState(state);
       setLiveWorkedSeconds(state.workedSeconds || 0);
       setLiveBreakSecondsLeft(state.breakRemainingSeconds || 0);
@@ -269,7 +269,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
     if (!currentStaff?.id) return;
     try {
       setLoading(true);
-      await api.resetEmployeeToday(currentStaff.id, '2026-11-15');
+      await api.resetEmployeeToday(currentStaff.id);
       await fetchState();
       if (onRefreshNeeded) onRefreshNeeded();
     } catch (err: any) {
