@@ -2,179 +2,235 @@
 
 @layer base {
   * {
-    font-feature-settings: "cv02" 1, "cv03" 1, "cv04" 1;
+    font-feature-settings: "cv02" 1, "cv03" 1, "cv04" 1, "tnum" 1;
+    border-color: #E6E6E2;
   }
 
   body {
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-weight: 500;
-    line-height: 1.4;
-    color: #22201C;
-    background-color: #FFFDF9;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-weight: 400;
+    line-height: 1.45;
+    color: #0A0A0A;
+    background-color: #FAFAF8;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, .font-heading {
-    font-family: 'Manrope', sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
     line-height: 1.25;
+    color: #0A0A0A;
   }
 
-  .hero-num, .tabular-nums, .tnum {
-    font-weight: 700;
+  .tabular-nums, .tnum {
     font-variant-numeric: tabular-nums;
   }
 }
 
-/* Warm Notion x Headspace design tokens */
+/* Quartz Minimal & Sharp Design System */
 .font-heading {
-  font-family: 'Manrope', sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 .font-body {
-  font-family: 'Manrope', sans-serif;
-  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
 }
 
-/* Custom warm soft shadows with consistent 16px radius */
+/* 1px Hairline Cards with 10-12px radius */
+.quartz-card {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E6E6E2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.quartz-card-interactive {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E6E6E2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.quartz-card-interactive:hover {
+  border-color: #0A0A0A;
+}
+
+.quartz-sunken {
+  background-color: #F2F2EF;
+  border-radius: 12px;
+  border: 1px solid #E6E6E2;
+}
+
+/* Backwards compatibility aliases */
 .warm-card {
   background-color: #FFFFFF;
-  border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(34, 32, 28, 0.04), 0 8px 24px rgba(34, 32, 28, 0.04);
-  border: 1px solid #ECE7DF;
+  border-radius: 12px;
+  border: 1px solid #E6E6E2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .warm-card-interactive {
   background-color: #FFFFFF;
-  border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(34, 32, 28, 0.04), 0 6px 16px rgba(34, 32, 28, 0.03);
-  border: 1px solid #ECE7DF;
-  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 12px;
+  border: 1px solid #E6E6E2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
 .warm-card-interactive:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(34, 32, 28, 0.04), 0 12px 28px rgba(34, 32, 28, 0.06);
-  border-color: #E2DDD5;
+  border-color: #0A0A0A;
 }
 
 .warm-sunken {
-  background-color: #F6F2EA;
-  border-radius: 16px;
-  border: 1px solid #ECE7DF;
+  background-color: #F2F2EF;
+  border-radius: 12px;
+  border: 1px solid #E6E6E2;
 }
 
-.warm-sheet {
+/* Small uppercase section label: 11px, +0.06em tracking */
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6E6E6A;
+}
+
+/* Status dots and small chips */
+.status-dot-present {
+  background-color: #2E7D4F;
+}
+
+.status-dot-break, .status-dot-half {
+  background-color: #B7791F;
+}
+
+.status-dot-unpaid {
+  background-color: #B42318;
+}
+
+.status-dot-leave {
+  background-color: #3B5BA9;
+}
+
+.chip-present {
   background-color: #FFFFFF;
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -4px 32px rgba(34, 32, 28, 0.08);
-  border-top: 1px solid #ECE7DF;
+  color: #2E7D4F;
+  border: 1px solid #2E7D4F;
 }
 
-/* Soft chip color tokens */
+.chip-half {
+  background-color: #FFFFFF;
+  color: #B7791F;
+  border: 1px solid #B7791F;
+}
+
+.chip-unpaid {
+  background-color: #FFFFFF;
+  color: #B42318;
+  border: 1px solid #B42318;
+}
+
+.chip-leave {
+  background-color: #FFFFFF;
+  color: #3B5BA9;
+  border: 1px solid #3B5BA9;
+}
+
+/* Standard Chip aliases for existing components */
 .chip-green {
-  background-color: #EAF5EE;
-  color: #23633E;
-  border: 1px solid #C6E7D1;
+  background-color: #FFFFFF;
+  color: #2E7D4F;
+  border: 1px solid #E6E6E2;
 }
 
 .chip-amber {
-  background-color: #FEF7E6;
-  color: #9A6A12;
-  border: 1px solid #FDE3A7;
+  background-color: #FFFFFF;
+  color: #B7791F;
+  border: 1px solid #E6E6E2;
 }
 
 .chip-red {
-  background-color: #FDF0ED;
-  color: #A8382B;
-  border: 1px solid #F8D0C8;
+  background-color: #FFFFFF;
+  color: #B42318;
+  border: 1px solid #E6E6E2;
 }
 
 .chip-blue {
-  background-color: #EDF4FC;
-  color: #2A5A8F;
-  border: 1px solid #CDE0F7;
+  background-color: #FFFFFF;
+  color: #3B5BA9;
+  border: 1px solid #E6E6E2;
 }
 
-.chip-neutral {
-  background-color: #F3F1EC;
-  color: #55524B;
-  border: 1px solid #E5E1D8;
+/* Buttons */
+.btn-primary {
+  background-color: #0A0A0A;
+  color: #FFFFFF;
+  font-weight: 500;
+  border-radius: 10px;
+  transition: background-color 150ms ease;
 }
 
-/* Phone Container Frame for desktop centering (max-width 430px) */
-.phone-frame {
-  width: 100%;
-  max-width: 430px;
-  min-height: 100vh;
-  margin-left: auto;
-  margin-right: auto;
-  background-color: #FFFDF9;
-  position: relative;
+.btn-primary:hover:not(:disabled) {
+  background-color: #222222;
 }
 
-@media (min-width: 640px) {
-  .phone-wrapper-bg {
-    background-color: #F6F2EA;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-  }
-  .phone-frame {
-    box-shadow: 0 0 0 1px #ECE7DF, 0 12px 40px rgba(34, 32, 28, 0.08);
-    min-height: 100vh;
-  }
+.btn-secondary {
+  background-color: #FFFFFF;
+  color: #0A0A0A;
+  font-weight: 500;
+  border: 1px solid #E6E6E2;
+  border-radius: 10px;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
-/* Gentle shake for password errors */
-@keyframes shake-gentle {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+.btn-secondary:hover:not(:disabled) {
+  background-color: #F2F2EF;
+  border-color: #0A0A0A;
 }
 
-.animate-shake {
-  animation: shake-gentle 0.4s ease-in-out;
+.btn-destructive {
+  color: #B42318;
+  font-weight: 500;
+  background: transparent;
+  transition: opacity 150ms ease;
 }
 
-/* Live Floor Indicator pulsing dot */
-@keyframes live-pulse {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(47, 125, 79, 0.6);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 7px rgba(47, 125, 79, 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(47, 125, 79, 0);
-  }
+.btn-destructive:hover {
+  text-decoration: underline;
 }
 
-.pulse-dot-green {
-  animation: live-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+/* Holiday Marker: violet-red outline with holiday label */
+.holiday-marker {
+  border: 1.5px solid #B0235F !important;
+  color: #B0235F;
 }
 
-/* Tap micro-interactions */
-.tap-bounce {
-  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.tap-bounce:active {
-  transform: scale(0.97);
-}
-
-.tnum {
-  font-variant-numeric: tabular-nums;
+.holiday-chip {
+  background-color: #FFFFFF;
+  color: #B0235F;
+  border: 1px solid #B0235F;
+  font-size: 11px;
 }
 
-/* Custom scrollbars */
+/* Accent touches */
+.accent-violet {
+  color: #B0235F;
+}
+
+.focus-quartz:focus {
+  outline: none;
+  border-color: #B0235F;
+  box-shadow: 0 0 0 1px #B0235F;
+}
+
+/* Clean Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -183,9 +239,24 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #ECE7DF;
-  border-radius: 9999px;
+  background: #E6E6E2;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #D9D3C7;
+  background: #6E6E6A;
+}
+
+/* Leaflet Container Minimal Styling */
+.leaflet-container {
+  font-family: 'Inter', sans-serif !important;
+  z-index: 10 !important;
+}
+
+@keyframes pulseSubtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

@@ -5,16 +5,13 @@ import { formatINR } from '../../utils/currency';
 import { exportPayrollPDF } from '../../utils/pdfExport';
 import { EmployeePayrollDetailModal } from './EmployeePayrollDetailModal';
 import {
-  Wallet,
   Download,
   Share2,
   Lock,
   Unlock,
   Check,
   ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Sparkles
+  ChevronRight
 } from 'lucide-react';
 
 interface PayrollViewProps {
@@ -52,10 +49,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
   }, [selectedMonth]);
 
   useEffect(() => {
-    if (highlightEmployeeId) {
-      const el = document.getElementById(`payroll-row-${highlightEmployeeId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (highlightEmployeeId && data?.employees) {
+      const emp = data.employees.find((e) => e.employeeId === highlightEmployeeId);
+      if (emp) {
+        setSelectedEmp(emp);
+        setModalOpen(true);
       }
     }
   }, [highlightEmployeeId, data]);
@@ -87,13 +85,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
   };
 
   const handleFinalize = async () => {
-    if (!confirm(`Finalize and lock payroll records for ${monthName} ${year}? This action cannot be reversed.`)) return;
+    if (!confirm(`Finalize and lock payroll ledger for ${monthName} ${year}? This action cannot be reversed.`)) return;
     try {
       setFinalizing(true);
       await api.finalizePayroll(selectedMonth);
       await fetchPayroll();
     } catch (err: any) {
-      alert(err.message || 'Failed to finalize');
+      alert(err.message || 'Failed to finalize payroll');
     } finally {
       setFinalizing(false);
     }
@@ -101,16 +99,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
 
   const handleCopyTeamWhatsApp = () => {
     if (!data) return;
+    const summary = data.summary || {
+      totalGross: data.totals?.totalGross || data.totals?.totalBase || 0,
+      totalDeductions: data.totals?.totalDeductions || 0,
+      totalBonus: data.totals?.totalBonus || 0,
+      totalNet: data.totals?.totalNet || 0
+    };
+
     const lines = [
-      `🌿 *Meats & Plants — Payroll Summary (${monthName} ${year})*`,
+      `*Meats & Plants — Payroll Statement (${monthName} ${year})*`,
       `📅 Period: ${selectedMonth} (${data.daysInMonth} days)`,
       `👥 Staff: 10 employees`,
-      `💰 Total Net Disbursable: ${formatINR(data.totals.totalNet)}`,
+      `💰 Total Gross: ${formatINR(summary.totalGross)}`,
+      `🔻 Total Deductions: -${formatINR(summary.totalDeductions)}`,
+      `🎁 Total Bonus: +${formatINR(summary.totalBonus)}`,
+      `*💵 Total Net Disbursable: ${formatINR(summary.totalNet)}*`,
       `---------------------------------`
     ];
 
     data.employees.forEach((emp) => {
-      lines.push(`• *${emp.employeeName}*: ${formatINR(emp.netSalary)} (${emp.presentDays} days worked, ${emp.paidLeavesUsed} leaves)`);
+      lines.push(`• *${emp.employeeName}*: ${formatINR(emp.netSalary || emp.netPay)} (${emp.presentDays}d present, ${emp.paidLeavesUsed}d paid leave, ${emp.holidaysCount || 0}d holiday, ${emp.unpaidDays || 0}d unpaid)`);
     });
 
     lines.push(`---------------------------------`);
@@ -122,210 +130,294 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
   };
 
   if (loading && !data) {
-    return <div className="p-8 text-center text-xs text-[#7A746A]">Calculating deterministic payroll...</div>;
+    return (
+      <div className="p-12 text-center text-xs text-[#6E6E6A]">
+        Calculating payroll accounting statement...
+      </div>
+    );
   }
 
-  const totals = data?.totals || {
-    totalBase: 0,
-    totalNet: 0,
-    totalDeductions: 0,
-    totalBonuses: 0,
-    totalLateMarks: 0,
-    totalPaidLeavesUsed: 0,
-    totalUnpaidDays: 0
+  const summary = data?.summary || {
+    totalGross: data?.totals?.totalGross || data?.totals?.totalBase || 0,
+    totalDeductions: data?.totals?.totalDeductions || 0,
+    totalBonus: data?.totals?.totalBonus || 0,
+    totalNet: data?.totals?.totalNet || 0
   };
 
+  const employees = data?.employees || [];
+
   return (
-    <div className="space-y-8">
-      {/* Title & Top Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* 1. Header: ‹ Nov 2026 ›, Status badge (Draft/Finalized), Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold tracking-tight text-[#22201C]">
-              Payroll Ledger
+            <h2 className="text-2xl font-bold tracking-tight text-[#0A0A0A]">
+              Payroll
             </h2>
+
             {data?.isFinalized ? (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#EAF5EE] text-[#23633E] border border-[#C6E7D1] text-[10px] font-bold flex items-center gap-1">
-                <Lock size={10} /> Locked &amp; Disbursed
+              <span className="px-2.5 py-0.5 rounded-full bg-[#FFFFFF] text-[#2E7D4F] border border-[#2E7D4F] text-[10px] font-semibold flex items-center gap-1">
+                <Lock size={10} /> Finalized
               </span>
             ) : (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#FEF7E6] text-[#9A6A12] border border-[#FDE3A7] text-[10px] font-bold flex items-center gap-1">
-                <Unlock size={10} /> Live Calculation
+              <span className="px-2.5 py-0.5 rounded-full bg-[#FFFFFF] text-[#B7791F] border border-[#B7791F] text-[10px] font-semibold flex items-center gap-1">
+                <Unlock size={10} /> Draft
               </span>
             )}
           </div>
-          <p className="text-xs text-[#7A746A] mt-0.5">
-            Transparent salary disbursement for all 10 staff members
+          <p className="text-xs text-[#6E6E6A] mt-0.5">
+            Transparent monthly disbursements for Meats &amp; Plants team
           </p>
         </div>
 
-        {/* Toolbar */}
+        {/* Header Toolbar */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Month Navigation */}
-          <div className="flex items-center gap-1.5 bg-white p-1 rounded-2xl border border-[#ECE7DF] warm-card">
-            <button onClick={handlePrevMonth} className="p-1 rounded-xl hover:bg-[#F6F2EA] text-[#7A746A] cursor-pointer">
+          {/* Month Picker: ‹ Nov 2026 › */}
+          <div className="flex items-center gap-1.5 bg-[#FFFFFF] p-1 rounded-xl border border-[#E6E6E2]">
+            <button
+              onClick={handlePrevMonth}
+              className="p-1 rounded-lg hover:bg-[#F2F2EF] text-[#6E6E6A] hover:text-[#0A0A0A] transition-colors cursor-pointer"
+              title="Previous month"
+            >
               <ChevronLeft size={16} />
             </button>
-            <span className="text-xs font-bold text-[#22201C] px-1.5">
-              {monthName} {year}
+            <span className="text-xs font-semibold text-[#0A0A0A] px-1.5 tabular-nums">
+              {monthName.slice(0, 3)} {year}
             </span>
-            <button onClick={handleNextMonth} className="p-1 rounded-xl hover:bg-[#F6F2EA] text-[#7A746A] cursor-pointer">
+            <button
+              onClick={handleNextMonth}
+              className="p-1 rounded-lg hover:bg-[#F2F2EF] text-[#6E6E6A] hover:text-[#0A0A0A] transition-colors cursor-pointer"
+              title="Next month"
+            >
               <ChevronRight size={16} />
             </button>
-            {selectedMonth !== '2026-11' && (
-              <button
-                onClick={() => onMonthChange('2026-11')}
-                className="ml-1 px-2 py-0.5 rounded-lg bg-[#EAF5EE] text-[#23633E] text-[10px] font-bold cursor-pointer"
-              >
-                This month
-              </button>
-            )}
           </div>
 
+          {/* Copy for WhatsApp */}
           <button
             onClick={handleCopyTeamWhatsApp}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-[#ECE7DF] text-xs font-semibold text-[#22201C] hover:bg-[#F6F2EA] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#FFFFFF] border border-[#E6E6E2] text-xs font-medium text-[#0A0A0A] hover:bg-[#F2F2EF] transition-colors cursor-pointer"
           >
-            {copyTeamSuccess ? <Check size={14} className="text-[#2F7D4F]" /> : <Share2 size={14} />}
-            <span>{copyTeamSuccess ? 'Copied!' : 'WhatsApp'}</span>
+            {copyTeamSuccess ? <Check size={14} className="text-[#2E7D4F]" /> : <Share2 size={14} />}
+            <span>{copyTeamSuccess ? 'Copied' : 'Copy for WhatsApp'}</span>
           </button>
 
+          {/* Export PDF */}
           <button
             onClick={() => data && exportPayrollPDF(data, 'Meats & Plants')}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#22201C] text-white text-xs font-semibold hover:bg-[#33302A] shadow-xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#FFFFFF] border border-[#E6E6E2] text-xs font-medium text-[#0A0A0A] hover:bg-[#F2F2EF] transition-colors cursor-pointer"
           >
             <Download size={14} />
             <span>Export PDF</span>
           </button>
 
+          {/* Finalize Button */}
           {!data?.isFinalized && (
             <button
               onClick={handleFinalize}
               disabled={finalizing}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2F7D4F] text-white text-xs font-bold hover:bg-[#276842] shadow-xs cursor-pointer active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0A0A0A] text-white text-xs font-medium hover:bg-[#222222] transition-colors cursor-pointer disabled:opacity-50"
             >
-              <Lock size={14} />
+              <Lock size={13} />
               <span>{finalizing ? 'Locking...' : 'Finalize'}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* 4 Summary Metric Tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-2xl bg-white border border-[#ECE7DF] warm-card">
-          <p className="text-xs font-semibold text-[#7A746A]">Total Base Salary</p>
-          <p className="text-3xl font-extrabold text-[#22201C] mt-1 tabular-nums">
-            {formatINR(totals.totalBase)}
+      {/* 2. Summary Strip: Total gross · Total deductions · Total bonus · Total net payable */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-4 rounded-xl bg-[#FFFFFF] border border-[#E6E6E2]">
+          <span className="section-label">Total Gross</span>
+          <p className="text-2xl font-bold text-[#0A0A0A] mt-1 tabular-nums">
+            {formatINR(summary.totalGross)}
           </p>
-          <p className="text-[11px] text-[#7A746A] mt-0.5">10 active team members</p>
+          <p className="text-[11px] text-[#6E6E6A] mt-0.5">10 employees</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-[#ECE7DF] warm-card">
-          <p className="text-xs font-semibold text-[#7A746A]">Total Deductions</p>
-          <p className="text-3xl font-extrabold text-[#A8382B] mt-1 tabular-nums">
-            -{formatINR(totals.totalDeductions)}
+        <div className="p-4 rounded-xl bg-[#FFFFFF] border border-[#E6E6E2]">
+          <span className="section-label">Total Deductions</span>
+          <p className="text-2xl font-bold text-[#B42318] mt-1 tabular-nums">
+            -{formatINR(summary.totalDeductions)}
           </p>
-          <p className="text-[11px] text-[#7A746A] mt-0.5">Unpaid + ½-days + lates</p>
+          <p className="text-[11px] text-[#6E6E6A] mt-0.5">Unpaid + Half days</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-[#ECE7DF] warm-card">
-          <p className="text-xs font-semibold text-[#7A746A]">Total Break Bonuses</p>
-          <p className="text-3xl font-extrabold text-[#23633E] mt-1 tabular-nums">
-            +{formatINR(totals.totalBonuses)}
+        <div className="p-4 rounded-xl bg-[#FFFFFF] border border-[#E6E6E2]">
+          <span className="section-label">Total Bonus</span>
+          <p className="text-2xl font-bold text-[#2E7D4F] mt-1 tabular-nums">
+            +{formatINR(summary.totalBonus)}
           </p>
-          <p className="text-[11px] text-[#7A746A] mt-0.5">Earned from 4-break bank tiers</p>
+          <p className="text-[11px] text-[#6E6E6A] mt-0.5">Banked break bonus</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-[#EAF5EE] border border-[#C6E7D1] warm-card">
-          <p className="text-xs font-semibold text-[#23633E]">Net Disbursable</p>
-          <p className="text-3xl font-extrabold text-[#23633E] mt-1 tabular-nums">
-            {formatINR(totals.totalNet)}
+        <div className="p-4 rounded-xl bg-[#F2F2EF] border border-[#E6E6E2]">
+          <span className="section-label">Total Net Payable</span>
+          <p className="text-2xl font-bold text-[#0A0A0A] mt-1 tabular-nums">
+            {formatINR(summary.totalNet)}
           </p>
-          <p className="text-[11px] text-[#2F7D4F] mt-0.5">Payday in 6 days 💸</p>
+          <p className="text-[11px] text-[#6E6E6A] mt-0.5">Disbursement ledger</p>
         </div>
       </div>
 
-      {/* Airy 56px Rows List Table */}
-      <div className="bg-white rounded-2xl border border-[#ECE7DF] warm-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#ECE7DF] flex items-center justify-between">
-          <h3 className="text-base font-bold text-[#22201C]">
-            Disbursement List · {monthName}
-          </h3>
-          <span className="text-xs text-[#7A746A]">Tap any row to view full payslip breakdown</span>
+      {/* 3. Main Table — Clean Accounting Statement */}
+      <div className="rounded-xl border border-[#E6E6E2] bg-[#FFFFFF] overflow-hidden shadow-2xs">
+        <div className="px-5 py-3.5 border-b border-[#E6E6E2] flex items-center justify-between">
+          <span className="section-label">Employee Payroll Ledger</span>
+          <span className="text-[11px] text-[#6E6E6A]">Click any row to open full payslip drawer</span>
         </div>
 
-        <div className="divide-y divide-[#ECE7DF]/70">
-          {data?.employees.map((emp) => {
-            const isHighlighted = highlightEmployeeId === emp.employeeId;
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-left">
+            <thead>
+              {/* Grouped Header Row */}
+              <tr className="border-b border-[#E6E6E2] bg-[#FAFAF8] text-[10px] font-semibold text-[#6E6E6A] uppercase tracking-wider">
+                <th colSpan={3} className="py-2 px-4 border-r border-[#E6E6E2]">
+                  Staff Details
+                </th>
+                <th colSpan={5} className="py-2 px-4 text-center border-r border-[#E6E6E2]">
+                  Attendance (Days)
+                </th>
+                <th colSpan={3} className="py-2 px-4 text-right">
+                  Compensation (₹)
+                </th>
+              </tr>
 
-            return (
-              <div
-                key={emp.employeeId}
-                id={`payroll-row-${emp.employeeId}`}
-                onClick={() => {
-                  setSelectedEmp(emp);
-                  setModalOpen(true);
-                }}
-                className={`px-5 py-3.5 min-h-[56px] flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors cursor-pointer group ${
-                  isHighlighted
-                    ? 'bg-[#EAF5EE]/60 border-l-4 border-l-[#2F7D4F]'
-                    : 'hover:bg-[#F6F2EA]/50'
-                }`}
-              >
-                {/* Left: Avatar + Name + Wage */}
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#F6F2EA] flex items-center justify-center font-bold text-xs text-[#22201C]">
-                    {emp.employeeName[0]}
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-[#22201C] group-hover:text-[#2F7D4F] transition-colors">
-                      {emp.employeeName}
-                    </div>
-                    <div className="text-xs text-[#7A746A]">
-                      ₹{emp.dailyWage}/day · {emp.payType === 'daily' ? 'Daily Wage' : 'Monthly'} ({emp.presentDays} days worked)
-                    </div>
-                  </div>
-                </div>
+              {/* Column Header Row */}
+              <tr className="border-b border-[#E6E6E2] bg-[#FAFAF8] text-[11px] font-semibold text-[#6E6E6A]">
+                <th className="py-2.5 px-4 font-semibold text-[#0A0A0A]">Employee</th>
+                <th className="py-2.5 px-3 text-right">Rate (₹/day)</th>
+                <th className="py-2.5 px-3 text-right border-r border-[#E6E6E2]">Working days</th>
 
-                {/* Middle: Chips */}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#EDF4FC] text-[#2A5A8F] border border-[#CDE0F7] font-semibold text-[11px]">
-                    {emp.paidLeavesUsed} leaves used
-                  </span>
+                {/* Attendance Group */}
+                <th className="py-2.5 px-3 text-right">Present</th>
+                <th className="py-2.5 px-3 text-right">Paid leave</th>
+                <th className="py-2.5 px-3 text-right">Holidays</th>
+                <th className="py-2.5 px-3 text-right">Unpaid</th>
+                <th className="py-2.5 px-3 text-right border-r border-[#E6E6E2]">Half days</th>
 
-                  {emp.lateDaysCount > 0 && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#FEF7E6] text-[#9A6A12] border border-[#FDE3A7] font-semibold text-[11px]">
-                      {emp.lateDaysCount} lates
-                    </span>
-                  )}
+                {/* Pay Group */}
+                <th className="py-2.5 px-3 text-right">Gross</th>
+                <th className="py-2.5 px-3 text-right">Deductions</th>
+                <th className="py-2.5 px-4 text-right font-bold text-[#0A0A0A]">Net pay</th>
+              </tr>
+            </thead>
 
-                  {emp.breaksBanked > 0 && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#EAF5EE] text-[#23633E] border border-[#C6E7D1] font-semibold text-[11px]">
-                      {emp.breaksBanked} breaks banked
-                    </span>
-                  )}
+            <tbody className="divide-y divide-[#E6E6E2]">
+              {employees.map((emp) => {
+                return (
+                  <tr
+                    key={emp.employeeId}
+                    onClick={() => {
+                      setSelectedEmp(emp);
+                      setModalOpen(true);
+                    }}
+                    className="hover:bg-[#FAFAF8] transition-colors cursor-pointer group"
+                  >
+                    {/* Employee */}
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-[#0A0A0A] group-hover:text-[#B0235F] transition-colors">
+                        {emp.employeeName}
+                      </div>
+                      <div className="text-[10px] text-[#6E6E6A]">
+                        {emp.role}
+                      </div>
+                    </td>
 
-                  {emp.totalDeductions > 0 && (
-                    <span className="text-[#A8382B] font-bold text-[11px] tabular-nums">
-                      -{formatINR(emp.totalDeductions)}
-                    </span>
-                  )}
-                </div>
+                    {/* Rate */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#0A0A0A]">
+                      {emp.dailyWage}
+                    </td>
 
-                {/* Right: Net Pay */}
-                <div className="text-right">
-                  <div className="text-base font-bold text-[#23633E] tabular-nums">
-                    {formatINR(emp.netSalary)}
-                  </div>
-                  <div className="text-[10px] text-[#7A746A]">Net payable</div>
-                </div>
-              </div>
-            );
-          })}
+                    {/* Working days */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#6E6E6A] border-r border-[#E6E6E2]">
+                      {emp.workingDays || data?.daysInMonth || 30}
+                    </td>
+
+                    {/* Present */}
+                    <td className="py-3 px-3 text-right tabular-nums font-medium text-[#2E7D4F]">
+                      {emp.presentDays}
+                    </td>
+
+                    {/* Paid leave */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#3B5BA9]">
+                      {emp.paidLeavesUsed}
+                    </td>
+
+                    {/* Holidays */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#0A0A0A]">
+                      {emp.holidaysCount || 0}
+                    </td>
+
+                    {/* Unpaid */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#B42318]">
+                      {emp.unpaidDays || emp.totalUnpaidDays || 0}
+                    </td>
+
+                    {/* Half days */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#B7791F] border-r border-[#E6E6E2]">
+                      {emp.halfDaysCount || emp.manualHalfDaysCount || 0}
+                    </td>
+
+                    {/* Gross */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#0A0A0A]">
+                      {formatINR(emp.grossPay || emp.baseSalary)}
+                    </td>
+
+                    {/* Deductions */}
+                    <td className="py-3 px-3 text-right tabular-nums text-[#B42318]">
+                      {emp.totalDeductions > 0 ? `-${formatINR(emp.totalDeductions)}` : '₹0'}
+                    </td>
+
+                    {/* Net pay */}
+                    <td className="py-3 px-4 text-right tabular-nums font-bold text-[#0A0A0A]">
+                      {formatINR(emp.netSalary || emp.netPay)}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Bold Totals Row matching summary strip */}
+              <tr className="bg-[#F2F2EF] font-bold text-xs border-t-2 border-[#E6E6E2]">
+                <td className="py-3.5 px-4 text-[#0A0A0A]">
+                  TOTALS
+                </td>
+                <td className="py-3.5 px-3 text-right text-[#6E6E6A]">—</td>
+                <td className="py-3.5 px-3 text-right text-[#6E6E6A] border-r border-[#E6E6E2]">—</td>
+
+                <td className="py-3.5 px-3 text-right tabular-nums text-[#2E7D4F]">
+                  {data?.totals?.totalPresentDays ?? employees.reduce((acc, e) => acc + e.presentDays, 0)}
+                </td>
+                <td className="py-3.5 px-3 text-right tabular-nums text-[#3B5BA9]">
+                  {data?.totals?.totalPaidLeavesUsed ?? employees.reduce((acc, e) => acc + e.paidLeavesUsed, 0)}
+                </td>
+                <td className="py-3.5 px-3 text-right tabular-nums text-[#0A0A0A]">
+                  {data?.totals?.totalHolidays ?? employees.reduce((acc, e) => acc + (e.holidaysCount || 0), 0)}
+                </td>
+                <td className="py-3.5 px-3 text-right tabular-nums text-[#B42318]">
+                  {data?.totals?.totalUnpaidDays ?? employees.reduce((acc, e) => acc + (e.unpaidDays || e.totalUnpaidDays || 0), 0)}
+                </td>
+                <td className="py-3.5 px-3 text-right tabular-nums text-[#B7791F] border-r border-[#E6E6E2]">
+                  {data?.totals?.totalHalfDays ?? employees.reduce((acc, e) => acc + (e.halfDaysCount || e.manualHalfDaysCount || 0), 0)}
+                </td>
+
+                <td className="py-3.5 px-3 text-right tabular-nums text-[#0A0A0A]">
+                  {formatINR(summary.totalGross)}
+                </td>
+                <td className="py-3.5 px-3 text-right tabular-nums text-[#B42318]">
+                  -{formatINR(summary.totalDeductions)}
+                </td>
+                <td className="py-3.5 px-4 text-right tabular-nums text-sm font-extrabold text-[#0A0A0A]">
+                  {formatINR(summary.totalNet)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
+      {/* Payslip Drawer Modal */}
       <EmployeePayrollDetailModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api';
-import { Employee, DayRecord, LeaveRequest, PayrollEmployee } from '../../types';
+import { Employee, DayRecord, LeaveRequest, PayrollEmployee, Holiday } from '../../types';
 import { AttendanceDrawer } from './AttendanceDrawer';
 import { EmployeeQuickProfileDrawer } from './EmployeeQuickProfileDrawer';
 import { formatTime12 } from '../../utils/time';
@@ -40,6 +40,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   const { storeCoords } = useLocation();
   const [dayMap, setDayMap] = useState<Record<string, DayRecord>>({});
   const [pendingLeaves, setPendingLeaves] = useState<LeaveRequest[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [payrollEmployees, setPayrollEmployees] = useState<PayrollEmployee[]>([]);
   const [payrollTotalNet, setPayrollTotalNet] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
     dateStr: string;
     record: DayRecord | null;
     isPending: boolean;
+    holiday?: Holiday;
     x: number;
     y: number;
   } | null>(null);
@@ -69,12 +71,14 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   const fetchMonthData = async () => {
     try {
       setLoading(true);
-      const [attRes, payRes] = await Promise.all([
+      const [attRes, payRes, holRes] = await Promise.all([
         api.getMonthAttendance(selectedMonth),
-        api.getMonthPayroll(selectedMonth).catch(() => null)
+        api.getMonthPayroll(selectedMonth).catch(() => null),
+        api.getHolidays(year).catch(() => [])
       ]);
       setDayMap(attRes.dayMap || {});
       setPendingLeaves(attRes.pendingLeaves || []);
+      setHolidays(holRes || attRes.holidays || []);
 
       if (payRes?.employees) {
         setPayrollEmployees(payRes.employees);
@@ -351,6 +355,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                     const record = dayMap[`${emp.id}_${dateStr}`];
                     const status = record?.status;
                     const isToday = selectedMonth === '2026-11' && dayNum === 15;
+                    const holiday = holidays.find((h) => h.date === dateStr);
 
                     const isPending = pendingLeaves.some(
                       (l) => l.employee_id === emp.id && dateStr >= l.start_date && dateStr <= l.end_date
@@ -362,6 +367,12 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                     if (isPending) {
                       cellClasses = 'bg-white text-[#4A7BB7] font-bold border-2 border-dashed border-[#4A7BB7] hover:scale-110';
                       symbol = '?';
+                    } else if (holiday && status === 'present') {
+                      cellClasses = 'bg-white text-[#2E7D4F] font-bold border-2 border-[#B0235F] hover:scale-110';
+                      symbol = 'P';
+                    } else if (holiday) {
+                      cellClasses = 'bg-white text-[#B0235F] font-bold border-1.5 border-[#B0235F] hover:scale-110';
+                      symbol = 'H';
                     } else if (status === 'present') {
                       cellClasses = 'bg-[#EAF5EE] text-[#23633E] font-bold border border-[#C6E7D1] hover:scale-110';
                       symbol = 'P';
@@ -390,6 +401,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                             dateStr,
                             record: record || null,
                             isPending,
+                            holiday,
                             x: rect.left + rect.width / 2,
                             y: rect.top - 8
                           });
@@ -466,7 +478,11 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
               </span>
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                  hoveredCell.isPending
+                  hoveredCell.holiday && hoveredCell.record?.status === 'present'
+                    ? 'bg-[#B0235F] text-white'
+                    : hoveredCell.holiday
+                    ? 'bg-[#B0235F] text-white'
+                    : hoveredCell.isPending
                     ? 'bg-[#4A7BB7] text-white'
                     : hoveredCell.record?.status === 'present'
                     ? 'bg-[#2F7D4F] text-white'
@@ -479,9 +495,21 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
                     : 'bg-[#55524B] text-white'
                 }`}
               >
-                {hoveredCell.isPending ? 'Pending' : (hoveredCell.record?.status || 'Off')}
+                {hoveredCell.holiday && hoveredCell.record?.status === 'present'
+                  ? 'Worked on holiday'
+                  : hoveredCell.holiday
+                  ? 'Holiday'
+                  : hoveredCell.isPending
+                  ? 'Pending'
+                  : (hoveredCell.record?.status || 'Off')}
               </span>
             </div>
+
+            {hoveredCell.holiday && (
+              <div className="text-[11px] text-[#B0235F] font-semibold py-0.5">
+                🏛️ {hoveredCell.holiday.name} (Paid gazetted holiday)
+              </div>
+            )}
 
             {/* In / Out Timings with Auto / Manual Tags */}
             <div className="text-[11px] text-[#ECE7DF] space-y-0.5">

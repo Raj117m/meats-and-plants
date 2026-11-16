@@ -169,6 +169,14 @@ export function initDatabase() {
       read_status INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY(employee_id) REFERENCES employees(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL UNIQUE, -- YYYY-MM-DD
+      name TEXT NOT NULL,
+      is_paid INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Safely ensure new columns exist in existing tables if upgrading
@@ -201,6 +209,18 @@ export function initDatabase() {
   } catch {}
   try {
     db.exec(`ALTER TABLE employees ADD COLUMN daily_wage INTEGER NOT NULL DEFAULT 600;`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE employees ADD COLUMN break_bank_skipped INTEGER NOT NULL DEFAULT 0;`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE employees ADD COLUMN bonus_holidays_earned INTEGER NOT NULL DEFAULT 0;`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE employees ADD COLUMN bonus_holidays_used INTEGER NOT NULL DEFAULT 0;`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE employees ADD COLUMN paid_leaves_quota INTEGER NOT NULL DEFAULT 3;`);
   } catch {}
   try {
     db.exec(`ALTER TABLE punches ADD COLUMN reviewed INTEGER NOT NULL DEFAULT 0;`);

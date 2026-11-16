@@ -244,6 +244,54 @@ export function seedData(force = false) {
     ON CONFLICT(id) DO NOTHING
   `).run();
 
+  // 4. Preloaded Indian National & Gazetted Holidays (2026 - 2027)
+  const indianHolidays = [
+    // 2026
+    { date: '2026-01-26', name: 'Republic Day', is_paid: 1 },
+    { date: '2026-02-17', name: 'Maha Shivratri', is_paid: 1 },
+    { date: '2026-03-04', name: 'Holi', is_paid: 1 },
+    { date: '2026-04-03', name: 'Good Friday', is_paid: 1 },
+    { date: '2026-04-14', name: 'Dr. Ambedkar Jayanti', is_paid: 1 },
+    { date: '2026-05-01', name: 'Maharashtra Day / Labour Day', is_paid: 1 },
+    { date: '2026-05-31', name: 'Bakrid / Eid al-Adha', is_paid: 1 },
+    { date: '2026-08-15', name: 'Independence Day', is_paid: 1 },
+    { date: '2026-08-28', name: 'Raksha Bandhan', is_paid: 1 },
+    { date: '2026-09-04', name: 'Janmashtami', is_paid: 1 },
+    { date: '2026-09-15', name: 'Milad-un-Nabi', is_paid: 1 },
+    { date: '2026-10-02', name: 'Mahatma Gandhi Jayanti', is_paid: 1 },
+    { date: '2026-10-20', name: 'Dussehra (Vijayadashami)', is_paid: 1 },
+    { date: '2026-11-08', name: 'Diwali (Laxmi Pujan)', is_paid: 1 },
+    { date: '2026-11-10', name: 'Bhai Dooj', is_paid: 1 },
+    { date: '2026-11-24', name: 'Guru Nanak Jayanti', is_paid: 1 },
+    { date: '2026-12-25', name: 'Christmas Day', is_paid: 1 },
+    // 2027
+    { date: '2027-01-26', name: 'Republic Day', is_paid: 1 },
+    { date: '2027-03-08', name: 'Maha Shivratri', is_paid: 1 },
+    { date: '2027-03-23', name: 'Holi', is_paid: 1 },
+    { date: '2027-03-26', name: 'Good Friday', is_paid: 1 },
+    { date: '2027-04-14', name: 'Dr. Ambedkar Jayanti', is_paid: 1 },
+    { date: '2027-05-01', name: 'Maharashtra Day / Labour Day', is_paid: 1 },
+    { date: '2027-05-20', name: 'Eid al-Adha', is_paid: 1 },
+    { date: '2027-08-15', name: 'Independence Day', is_paid: 1 },
+    { date: '2027-08-17', name: 'Raksha Bandhan', is_paid: 1 },
+    { date: '2027-08-25', name: 'Janmashtami', is_paid: 1 },
+    { date: '2027-10-02', name: 'Mahatma Gandhi Jayanti', is_paid: 1 },
+    { date: '2027-10-10', name: 'Dussehra', is_paid: 1 },
+    { date: '2027-10-29', name: 'Diwali', is_paid: 1 },
+    { date: '2027-11-14', name: 'Guru Nanak Jayanti', is_paid: 1 },
+    { date: '2027-12-25', name: 'Christmas Day', is_paid: 1 }
+  ];
+
+  const insertHoliday = db.prepare(`
+    INSERT INTO holidays (date, name, is_paid)
+    VALUES (?, ?, ?)
+    ON CONFLICT(date) DO UPDATE SET name = excluded.name, is_paid = excluded.is_paid
+  `);
+
+  for (const h of indianHolidays) {
+    insertHoliday.run(h.date, h.name, h.is_paid);
+  }
+
   // Audit log
   db.prepare(`
     INSERT INTO audit_log (employee_id, target_date, action, actor, details, timestamp)

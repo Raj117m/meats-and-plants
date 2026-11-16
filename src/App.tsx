@@ -12,9 +12,9 @@ const AppContent: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FFFDF9] flex flex-col items-center justify-center space-y-3">
-        <div className="w-8 h-8 rounded-full border-2 border-[#2F7D4F] border-t-transparent animate-spin" />
-        <p className="text-xs font-semibold text-[#7A746A]">
+      <div className="min-h-screen bg-[#FAFAF8] flex flex-col items-center justify-center space-y-3">
+        <div className="w-8 h-8 rounded-full border-2 border-[#0A0A0A] border-t-transparent animate-spin" />
+        <p className="text-xs font-semibold text-[#6E6E6A]">
           Loading Meats &amp; Plants...
         </p>
       </div>
@@ -22,7 +22,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9] text-[#22201C] antialiased">
+    <div className="min-h-screen bg-[#FAFAF8] text-[#0A0A0A] antialiased">
       {/* Reviewer / Prototype Demo Bar for quick Geofence switching & cron testing */}
       <DemoBar />
 
@@ -31,10 +31,8 @@ const AppContent: React.FC = () => {
         {role === 'owner' ? (
           <OwnerDashboard />
         ) : !currentStaff ? (
-          <div className="phone-wrapper-bg">
-            <div className="phone-frame">
-              <StaffNamePicker />
-            </div>
+          <div className="min-h-[calc(100vh-2rem)] flex flex-col justify-start">
+            <StaffNamePicker />
           </div>
         ) : (
           <EmployeeApp />

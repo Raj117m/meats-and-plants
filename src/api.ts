@@ -4,13 +4,15 @@ import {
   CafeLocation,
   RosterResponse,
   DayRecord,
+  DayState,
+  Holiday,
   PayrollMonthResponse,
   LeaveRequest,
   PunchRequest,
   UnifiedInboxResponse,
   AuditLogEntry
 } from './types';
-import { DEFAULT_STAFF, DEFAULT_SETTINGS } from './data/defaultStaff';
+import { DEFAULT_STAFF, DEFAULT_SETTINGS, DEFAULT_HOLIDAYS } from './data/defaultStaff';
 
 const API_BASE = '/api';
 const PUNCHES_STORAGE_KEY = 'mp_punches_store';
@@ -29,46 +31,107 @@ function saveLocalPunches(punches: any[]) {
   } catch {}
 }
 
+function computeLocalDayState(employeeId: number, date: string = '2026-11-15'): DayState {
+  const punches = getLocalPunches().filter((p) => p.employee_id === employeeId && p.date === date);
+  const checkIn = punches.find((p) => p.type === 'check_in');
+  const checkOut = punches.find((p) => p.type === 'check_out');
+  const breakStart = [...punches].reverse().find((p) => p.type === 'start_break');
+  const breakEnd = [...punches].reverse().find((p) => p.type === 'end_break');
+
+  const nowMs = Date.now();
+  let status: 'NOT_STARTED' | 'ON_SHIFT' | 'ON_BREAK' | 'ENDED' = 'NOT_STARTED';
+  let shiftStart = checkIn?.timestamp || null;
+  let shiftEnd = checkOut?.timestamp || null;
+  let bStart = breakStart?.timestamp || null;
+  let bEnd = breakEnd?.timestamp || null;
+  let breakUsed = Boolean(bStart);
+  let workedSeconds = 0;
+  let breakRemainingSeconds = 0;
+  const maxBreakSec = 180 * 60; // 3 hours
+
+  if (checkOut) {
+    status = 'ENDED';
+  } else if (bStart) {
+    const bStartMs = new Date(bStart).getTime();
+    if (bEnd) {
+      status = 'ON_SHIFT';
+    } else {
+      const elapsedBreakSec = Math.max(0, Math.floor((nowMs - bStartMs) / 1000));
+      if (elapsedBreakSec >= maxBreakSec) {
+        status = 'ON_SHIFT';
+        bEnd = new Date(bStartMs + maxBreakSec * 1000).toISOString();
+        breakRemainingSeconds = 0;
+      } else {
+        status = 'ON_BREAK';
+        breakRemainingSeconds = maxBreakSec - elapsedBreakSec;
+      }
+    }
+  } else if (checkIn) {
+    status = 'ON_SHIFT';
+  } else {
+    status = 'NOT_STARTED';
+  }
+
+  if (shiftStart) {
+    const startMs = new Date(shiftStart).getTime();
+    const endMs = shiftEnd ? new Date(shiftEnd).getTime() : nowMs;
+    let breakDurationMs = 0;
+    if (bStart) {
+      const bStartMs = new Date(bStart).getTime();
+      const bEndMs = bEnd ? new Date(bEnd).getTime() : Math.min(nowMs, bStartMs + maxBreakSec * 1000);
+      breakDurationMs = Math.max(0, bEndMs - bStartMs);
+    }
+    if (status === 'ON_BREAK') {
+      const bStartMs = new Date(bStart).getTime();
+      workedSeconds = Math.max(0, Math.floor((bStartMs - startMs) / 1000));
+    } else {
+      workedSeconds = Math.max(0, Math.floor((endMs - startMs - breakDurationMs) / 1000));
+    }
+  }
+
+  const emp = DEFAULT_STAFF.find((e) => e.id === employeeId);
+
+  return {
+    status,
+    shiftStart,
+    breakStart: bStart,
+    breakEnd: bEnd,
+    breakUsed,
+    shiftEnd,
+    workedSeconds,
+    breakRemainingSeconds,
+    date,
+    isLate: false,
+    lateMinutes: 0,
+    isHalfDay: false,
+    deduction: 'none',
+    breakSkipped: Boolean(checkOut && !bStart),
+    employee: emp,
+    punches
+  };
+}
+
 function computeLocalRoster(date: string = '2026-11-15'): RosterResponse {
-  const punches = getLocalPunches().filter((p) => p.date === date);
   let onFloor = 0;
   let onBreak = 0;
   let notInYet = 0;
   let onLeave = 0;
 
   const roster = DEFAULT_STAFF.map((emp) => {
-    const empPunches = punches.filter((p) => p.employee_id === emp.id);
-    const checkIn = empPunches.find((p) => p.type === 'check_in');
-    const checkOut = empPunches.find((p) => p.type === 'check_out');
-    const breakStart = [...empPunches].reverse().find((p) => p.type === 'start_break');
-    const breakEnd = [...empPunches].reverse().find((p) => p.type === 'end_break');
+    const state = computeLocalDayState(emp.id, date);
 
-    const isBreakActive = breakStart && (!breakEnd || new Date(breakEnd.timestamp) < new Date(breakStart.timestamp));
-
-    let status: 'not_in_yet' | 'on_floor' | 'on_break' | 'checked_out' | 'on_leave' = 'not_in_yet';
-    let workedSeconds = 0;
-    let breakSecondsLeft = 0;
-
-    if (checkOut) {
-      status = 'checked_out';
-    } else if (isBreakActive) {
-      status = 'on_break';
+    let mappedStatus: 'not_in_yet' | 'on_floor' | 'on_break' | 'checked_out' | 'on_leave' = 'not_in_yet';
+    if (state.status === 'ENDED') {
+      mappedStatus = 'checked_out';
+    } else if (state.status === 'ON_BREAK') {
+      mappedStatus = 'on_break';
       onBreak++;
-      const startMs = new Date(breakStart.timestamp).getTime();
-      const elapsed = Math.floor((Date.now() - startMs) / 1000);
-      breakSecondsLeft = Math.max(0, 180 * 60 - elapsed);
-    } else if (checkIn) {
-      status = 'on_floor';
+    } else if (state.status === 'ON_SHIFT') {
+      mappedStatus = 'on_floor';
       onFloor++;
     } else {
-      status = 'not_in_yet';
+      mappedStatus = 'not_in_yet';
       notInYet++;
-    }
-
-    if (checkIn) {
-      const inMs = new Date(checkIn.timestamp).getTime();
-      const endMs = checkOut ? new Date(checkOut.timestamp).getTime() : Date.now();
-      workedSeconds = Math.max(0, Math.floor((endMs - inMs) / 1000));
     }
 
     return {
@@ -81,18 +144,26 @@ function computeLocalRoster(date: string = '2026-11-15'): RosterResponse {
       dailyWage: emp.daily_wage,
       monthlySalary: emp.monthly_salary,
       bonusPreference: emp.bonus_preference,
-      status,
-      checkInTime: checkIn?.timestamp || null,
-      checkInSource: checkIn?.source || 'app',
-      checkOutTime: checkOut?.timestamp || null,
-      checkOutSource: checkOut?.source || 'app',
-      breakStartTime: isBreakActive ? breakStart?.timestamp || null : null,
-      breakSecondsLeft,
-      workedSeconds,
-      isLate: false,
-      lateMinutes: 0,
+      status: mappedStatus,
+      dayStateStatus: state.status,
+      shiftStart: state.shiftStart,
+      shiftEnd: state.shiftEnd,
+      breakStart: state.breakStart,
+      breakEnd: state.breakEnd,
+      breakUsed: state.breakUsed,
+      checkInTime: state.shiftStart,
+      checkInSource: 'app' as const,
+      checkOutTime: state.shiftEnd,
+      checkOutSource: 'app' as const,
+      breakStartTime: state.breakStart,
+      breakSecondsLeft: state.breakRemainingSeconds,
+      workedSeconds: state.workedSeconds,
+      isLate: state.isLate,
+      lateMinutes: state.lateMinutes,
+      isHalfDay: state.isHalfDay,
+      breakSkipped: state.breakSkipped,
       dayRecord: null,
-      punches: empPunches
+      punches: state.punches
     };
   });
 
@@ -153,8 +224,8 @@ export const api = {
           name: 'Sparta Building (Main Branch)',
           lat: DEFAULT_SETTINGS.store_lat,
           lng: DEFAULT_SETTINGS.store_lng,
-          radius_m: DEFAULT_SETTINGS.geofence_radius_meters,
-          is_active: 1
+          radius: DEFAULT_SETTINGS.geofence_radius,
+          is_primary: 1
         }
       ];
     }
@@ -185,6 +256,45 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Holidays (Section 4)
+  async getHolidays(year?: string, month?: string): Promise<Holiday[]> {
+    try {
+      const params = new URLSearchParams();
+      if (year) params.set('year', year);
+      if (month) params.set('month', month);
+      const res = await fetch(`${API_BASE}/holidays?${params.toString()}`);
+      return await handleResponse<Holiday[]>(res);
+    } catch {
+      return DEFAULT_HOLIDAYS;
+    }
+  },
+
+  async createHoliday(payload: Partial<Holiday>): Promise<Holiday> {
+    const res = await fetch(`${API_BASE}/holidays`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return handleResponse<Holiday>(res);
+  },
+
+  async updateHoliday(id: number, payload: Partial<Holiday>): Promise<Holiday> {
+    const res = await fetch(`${API_BASE}/holidays/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return handleResponse<Holiday>(res);
+  },
+
+  async deleteHoliday(id: number): Promise<{ success: boolean }> {
+    const res = await fetch(`${API_BASE}/holidays/${id}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
+
+  // Owner Auth
   async changeOwnerPassword(currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
     const res = await fetch(`${API_BASE}/settings/owner-password`, {
       method: 'POST',
@@ -194,7 +304,6 @@ export const api = {
     return handleResponse(res);
   },
 
-  // Owner Auth (password = meats2026 by default)
   async ownerLogin(password: string): Promise<{ authenticated: boolean; user: any }> {
     try {
       const res = await fetch(`${API_BASE}/auth/owner-login`, {
@@ -243,13 +352,22 @@ export const api = {
     return handleResponse<Employee>(res);
   },
 
-  // Roster
+  // Roster & Today State (Section 1)
   async getTodayRoster(date: string = '2026-11-15'): Promise<RosterResponse> {
     try {
       const res = await fetch(`${API_BASE}/roster/today?date=${date}`);
       return await handleResponse<RosterResponse>(res);
     } catch {
       return computeLocalRoster(date);
+    }
+  },
+
+  async getTodayState(employeeId: number, date: string = '2026-11-15'): Promise<DayState> {
+    try {
+      const res = await fetch(`${API_BASE}/today/${employeeId}?date=${date}`);
+      return await handleResponse<DayState>(res);
+    } catch {
+      return computeLocalDayState(employeeId, date);
     }
   },
 
@@ -283,69 +401,77 @@ export const api = {
     }
   },
 
-  // Punches
+  // Section 1: Unified Punch Submission
   async submitPunch(payload: {
-    employee_id: number;
-    type: 'check_in' | 'start_break' | 'end_break' | 'check_out';
+    employeeId?: number;
+    employee_id?: number;
+    action?: string;
+    type?: string;
     lat?: number;
     lng?: number;
     accuracy?: number;
-    ssid?: string;
+    source?: 'app' | 'manual';
     notes?: string;
+    reason?: string;
+    time?: string;
     custom_time?: string;
-  }): Promise<{ success: boolean; punch: any; isLate?: boolean; lateMinutes?: number }> {
+  }): Promise<DayState & { success: boolean; punch?: any }> {
+    const empId = payload.employeeId || payload.employee_id!;
+    const action = payload.action || payload.type!;
+    const body = {
+      employeeId: empId,
+      action,
+      source: payload.source || 'app',
+      lat: payload.lat,
+      lng: payload.lng,
+      accuracy: payload.accuracy,
+      notes: payload.notes,
+      reason: payload.reason,
+      time: payload.time || payload.custom_time
+    };
+
     try {
-      const res = await fetch(`${API_BASE}/punches`, {
+      const res = await fetch(`${API_BASE}/punch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(body)
       });
-      return await handleResponse(res);
-    } catch {
+      return await handleResponse<DayState & { success: boolean; punch?: any }>(res);
+    } catch (err: any) {
+      // Local fallback simulation
       const punches = getLocalPunches();
-      const timestamp = payload.custom_time || new Date().toISOString();
+      const timestamp = body.time || new Date().toISOString();
       const date = timestamp.slice(0, 10);
+
+      const normAction = action.toLowerCase().replace(/_/g, '');
+      let punchType = 'check_in';
+      if (normAction === 'startshift' || normAction === 'checkin') punchType = 'check_in';
+      else if (normAction === 'startbreak') punchType = 'start_break';
+      else if (normAction === 'endbreak') punchType = 'end_break';
+      else if (normAction === 'endshift' || normAction === 'checkout') punchType = 'check_out';
+
       const newPunch = {
         id: Date.now(),
-        employee_id: payload.employee_id,
-        type: payload.type,
+        employee_id: empId,
+        type: punchType,
         timestamp,
         date,
         lat: payload.lat,
         lng: payload.lng,
         accuracy: payload.accuracy,
-        notes: payload.notes || 'Local Punch'
+        notes: payload.notes || payload.reason || 'Local Punch'
       };
+
       punches.push(newPunch);
       saveLocalPunches(punches);
-      return { success: true, punch: newPunch, isLate: false, lateMinutes: 0 };
+
+      const state = computeLocalDayState(empId, date);
+      return {
+        success: true,
+        ...state,
+        punch: newPunch
+      };
     }
-  },
-
-  // Break Bank Redemption (Staff Page)
-  async redeemBreak(employeeId: number, type: 'pay' | 'leave', month?: string): Promise<{
-    success: boolean;
-    redemptionId: number;
-    message: string;
-    employeeName: string;
-    type: string;
-    amount: number;
-  }> {
-    const res = await fetch(`${API_BASE}/employees/${employeeId}/redeem-break`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, month })
-    });
-    return handleResponse(res);
-  },
-
-  async undoBreakRedemption(employeeId: number, redemptionId: number): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/employees/${employeeId}/undo-break-redemption`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ redemptionId })
-    });
-    return handleResponse(res);
   },
 
   async submitManualPunch(payload: {
@@ -355,15 +481,16 @@ export const api = {
     time: string;
     reason?: string;
   }): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`${API_BASE}/punches/manual`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return handleResponse(res);
+    return this.submitPunch({
+      employeeId: payload.employee_id,
+      action: payload.type,
+      source: 'manual',
+      time: `${payload.date}T${payload.time.length === 5 ? payload.time + ':00' : payload.time}`,
+      reason: payload.reason
+    }).then(() => ({ success: true, message: 'Punch recorded' }));
   },
 
-  // Staff punch fix request ("Forgot to punch? Request a fix")
+  // Punch Fix Requests
   async submitPunchRequest(payload: {
     employee_id: number;
     type: 'check_in' | 'start_break' | 'end_break' | 'check_out';
@@ -395,10 +522,11 @@ export const api = {
       return await handleResponse<UnifiedInboxResponse>(res);
     } catch {
       return {
+        totalCount: 0,
         pendingPunchFixes: [],
         pendingLeaves: [],
         autoCheckoutsToReview: []
-      };
+      } as any;
     }
   },
 
@@ -409,12 +537,13 @@ export const api = {
     return handleResponse(res);
   },
 
-  // Attendance Calendar (Accepts any YYYY-MM)
+  // Attendance Month & Day
   async getMonthAttendance(month: string = '2026-11'): Promise<{
     month: string;
     employees: Employee[];
     dayMap: Record<string, DayRecord>;
     pendingLeaves?: LeaveRequest[];
+    holidays?: Holiday[];
   }> {
     try {
       const res = await fetch(`${API_BASE}/attendance/month?month=${month}`);
@@ -424,7 +553,8 @@ export const api = {
         month,
         employees: DEFAULT_STAFF,
         dayMap: {},
-        pendingLeaves: []
+        pendingLeaves: [],
+        holidays: DEFAULT_HOLIDAYS
       };
     }
   },
@@ -448,39 +578,67 @@ export const api = {
     return handleResponse(res);
   },
 
-  // Payroll (Accepts any YYYY-MM)
+  // Payroll (Section 8 Accounting Statement)
   async getMonthPayroll(month: string = '2026-11'): Promise<PayrollMonthResponse> {
     try {
       const res = await fetch(`${API_BASE}/payroll/month?month=${month}`);
       return await handleResponse<PayrollMonthResponse>(res);
     } catch {
-      return {
-        month,
-        isFinalized: false,
-        summary: {
-          totalPayroll: 185000,
-          totalEmployees: DEFAULT_STAFF.length,
-          totalLeavesDeducted: 0,
-          totalBonusesPaid: 3500,
-          totalLateDeductions: 0
-        },
-        records: DEFAULT_STAFF.map((emp) => ({
+      const records = DEFAULT_STAFF.map((emp) => {
+        const gross = emp.monthly_salary;
+        return {
           employeeId: emp.id,
           employeeName: emp.name,
           role: emp.role,
           payType: emp.pay_type,
-          baseSalary: emp.monthly_salary,
+          baseSalary: gross,
           dailyWage: emp.daily_wage,
+          dailyRate: emp.daily_wage,
+          halfDayRate: Math.round(emp.daily_wage / 2),
+          workingDays: 30,
           presentDays: 24,
-          leaveDays: 2,
-          halfDays: 0,
-          absentDays: 0,
-          grossSalary: emp.monthly_salary,
-          leaveDeductions: 0,
-          lateDeductions: 0,
-          netSalary: emp.monthly_salary,
-          breakBonusAmount: 0
-        }))
+          paidLeavesUsed: 2,
+          paidLeavesLeft: 1,
+          totalPaidLeavesQuota: 3,
+          availableBonusHolidays: emp.bonus_holidays_earned || 0,
+          holidayDaysCount: 2,
+          unpaidDaysCount: 0,
+          halfDaysCount: 0,
+          grossSalary: gross,
+          unpaidDaysDeductionAmount: 0,
+          halfDaysDeductionAmount: 0,
+          totalDeductions: 0,
+          netSalary: gross,
+          breaksBanked: emp.break_bank_skipped || 0,
+          breakBankRemainder: (emp.break_bank_skipped || 0) % 4
+        };
+      });
+
+      const totalGross = records.reduce((s, r) => s + r.grossSalary, 0);
+      const totalNet = records.reduce((s, r) => s + r.netSalary, 0);
+
+      return {
+        month,
+        daysInMonth: 30,
+        isFinalized: false,
+        finalizedAt: null,
+        summary: {
+          totalGross,
+          totalDeductions: 0,
+          totalBonus: 2,
+          totalNetPayable: totalNet
+        },
+        totals: {
+          totalGross,
+          totalDeductions: 0,
+          totalBonus: 2,
+          totalNetPayable: totalNet,
+          totalBase: totalGross,
+          totalNet
+        },
+        holidays: DEFAULT_HOLIDAYS,
+        records,
+        employees: records
       };
     }
   },
@@ -571,7 +729,6 @@ export const api = {
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch {
-      // Local CSV generation fallback
       const roster = computeLocalRoster(date || '2026-11-15');
       const headers = ['Employee Name', 'Role', 'Status', 'Check In', 'Check Out', 'Worked Hours', 'Date'];
       const rows = roster.roster.map((r) => [
@@ -583,7 +740,7 @@ export const api = {
         `"${(r.workedSeconds / 3600).toFixed(2)}"`,
         `"${roster.date}"`
       ]);
-      const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');

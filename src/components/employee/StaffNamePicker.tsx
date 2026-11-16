@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Employee } from '../../types';
 import { DEFAULT_STAFF } from '../../data/defaultStaff';
 import { Logo } from '../common/Logo';
-import { Search, UserCheck, ArrowRight, Check, Lock } from 'lucide-react';
+import { Search, ArrowRight, Lock, CheckCircle2 } from 'lucide-react';
 
 export const StaffNamePicker: React.FC = () => {
   const { employees, selectStaff, setOwnerModalOpen } = useAuth();
@@ -25,131 +25,135 @@ export const StaffNamePicker: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF9] flex flex-col justify-between p-4 sm:p-6 max-w-[430px] mx-auto">
-      {/* Top Header with Logo and Owner Button */}
-      <div className="flex items-center justify-between pt-2 pb-4">
-        <Logo size="sm" subtitle="Café Staff Portal" />
+    <div className="w-full max-w-md mx-auto px-4 py-6 sm:py-8 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-[#E6E6E2]">
+        <Logo size="sm" subtitle="Staff Attendance & Shifts" />
 
         <button
           onClick={() => setOwnerModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F6F2EA] text-[#7A746A] hover:text-[#22201C] text-xs font-medium border border-[#ECE7DF] transition-colors tap-bounce"
-          title="Owner access"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FFFFFF] text-[#0A0A0A] hover:bg-[#F2F2EF] text-xs font-medium border border-[#E6E6E2] transition-colors"
+          title="Owner login"
         >
-          <Lock size={13} className="text-[#C0573E]" />
+          <Lock size={12} className="text-[#B0235F]" />
           <span>Owner</span>
         </button>
       </div>
 
-      {/* Main Body: Name Selection or Confirmation */}
-      <div className="my-auto py-4">
-        {!selectedEmp ? (
-          <div className="space-y-4">
-            <div>
-              <h1 className="font-heading text-2xl font-bold tracking-tight text-[#22201C]">
-                Who's working today?
-              </h1>
-              <p className="text-xs text-[#7A746A] mt-1">
-                Select your name to see your shifts, breaks, and earnings.
-              </p>
-            </div>
+      {!selectedEmp ? (
+        <div className="space-y-4">
+          <div>
+            <span className="section-label">Select Profile</span>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#0A0A0A] mt-0.5">
+              Who is checking in today?
+            </h1>
+            <p className="text-xs text-[#6E6E6A] mt-1">
+              Tap your name below to view shifts, record punches, or request leaves.
+            </p>
+          </div>
 
-            {/* Search Box */}
-            <div className="relative">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7A746A]" />
-              <input
-                type="text"
-                placeholder="Find your name or role..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#F6F2EA] border border-[#ECE7DF] text-xs text-[#22201C] focus:outline-none focus:border-[#2F7D4F]"
-              />
-            </div>
+          {/* Search Box */}
+          <div className="relative">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6E6E6A]" />
+            <input
+              type="text"
+              placeholder="Search staff by name or role..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#FFFFFF] border border-[#E6E6E2] text-xs text-[#0A0A0A] placeholder-[#6E6E6A] focus-quartz transition-colors"
+            />
+          </div>
 
-            {/* 10 Friendly Name Cards Grid */}
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
-              {filtered.map((emp) => {
-                const firstName = emp.name.split(' ')[0];
-                return (
-                  <button
-                    key={emp.id}
-                    onClick={() => setSelectedEmp(emp)}
-                    className="p-3.5 rounded-[18px] bg-white border border-[#ECE7DF] warm-card-interactive text-left flex items-center gap-3 tap-bounce cursor-pointer group"
+          {/* 10 Real Staff Cards */}
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            {filtered.map((emp) => {
+              const firstName = emp.name;
+              return (
+                <button
+                  key={emp.id}
+                  onClick={() => setSelectedEmp(emp)}
+                  className="p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E6E6E2] hover:border-[#0A0A0A] transition-all text-left flex items-center gap-3 cursor-pointer group shadow-2xs"
+                >
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                    style={{ backgroundColor: emp.avatar_color || '#2E7D4F' }}
                   >
-                    <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-xs"
-                      style={{ backgroundColor: emp.avatar_color || '#2F7D4F' }}
-                    >
-                      {emp.name[0]}
+                    {emp.name[0]}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs sm:text-sm font-semibold text-[#0A0A0A] truncate group-hover:text-[#B0235F] transition-colors">
+                      {firstName}
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-[#22201C] truncate group-hover:text-[#2F7D4F] transition-colors">
-                        {firstName}
-                      </div>
-                      <div className="text-[11px] text-[#7A746A] truncate">
-                        {emp.role}
-                      </div>
+                    <div className="text-[11px] text-[#6E6E6A] truncate">
+                      {emp.role}
                     </div>
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        ) : (
-          /* Confirmation Screen */
-          <div className="p-6 rounded-[24px] bg-white border border-[#ECE7DF] warm-card text-center space-y-5 animate-scale-in">
-            <div
-              className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-sm"
-              style={{ backgroundColor: selectedEmp.avatar_color || '#2F7D4F' }}
+
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-xs text-[#6E6E6A] bg-[#FFFFFF] rounded-xl border border-[#E6E6E2]">
+              No team member matching "{search}"
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Confirmation Screen */
+        <div className="p-6 rounded-2xl bg-[#FFFFFF] border border-[#E6E6E2] text-center space-y-5 shadow-xs">
+          <div
+            className="w-14 h-14 mx-auto rounded-xl flex items-center justify-center text-white text-xl font-bold"
+            style={{ backgroundColor: selectedEmp.avatar_color || '#2E7D4F' }}
+          >
+            {selectedEmp.name[0]}
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-[#0A0A0A]">
+              Welcome, {selectedEmp.name}!
+            </h2>
+            <p className="text-xs text-[#6E6E6A] mt-1">
+              {selectedEmp.role} · Meats &amp; Plants
+            </p>
+          </div>
+
+          <label className="flex items-center justify-center gap-2 text-xs text-[#0A0A0A] cursor-pointer select-none py-1">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4 rounded border-[#E6E6E2] text-[#0A0A0A] accent-[#0A0A0A] cursor-pointer"
+            />
+            <span className="font-normal text-[#6E6E6A]">
+              Remember me on this browser
+            </span>
+          </label>
+
+          <div className="space-y-2 pt-2">
+            <button
+              onClick={handleConfirm}
+              className="w-full py-3 px-4 rounded-xl font-semibold text-xs text-white bg-[#0A0A0A] hover:bg-[#222222] transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
-              {selectedEmp.name[0]}
-            </div>
+              <span>Continue to Today's Shift</span>
+              <ArrowRight size={14} />
+            </button>
 
-            <div>
-              <h2 className="font-heading text-2xl font-bold text-[#22201C]">
-                Hi {selectedEmp.name.split(' ')[0]}! 👋
-              </h2>
-              <p className="text-xs text-[#7A746A] mt-1">
-                {selectedEmp.role} · Meats &amp; Plants
-              </p>
-            </div>
-
-            {/* Remember Me Checkbox */}
-            <label className="flex items-center justify-center gap-2 text-xs text-[#22201C] cursor-pointer select-none py-1">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded text-[#2F7D4F] accent-[#2F7D4F] cursor-pointer"
-              />
-              <span className="font-medium text-[#7A746A]">
-                Remember me on this phone
-              </span>
-            </label>
-
-            {/* Action Buttons */}
-            <div className="space-y-2 pt-2">
-              <button
-                onClick={handleConfirm}
-                className="w-full py-3.5 px-4 rounded-xl font-bold text-xs text-white bg-[#2F7D4F] hover:bg-[#276842] transition-all tap-bounce flex items-center justify-center gap-2 shadow-xs"
-              >
-                <span>Continue to Shift</span>
-                <ArrowRight size={15} />
-              </button>
-
-              <button
-                onClick={() => setSelectedEmp(null)}
-                className="w-full py-2.5 text-xs text-[#7A746A] hover:text-[#22201C] font-medium"
-              >
-                Not you? Choose another name
-              </button>
-            </div>
+            <button
+              onClick={() => setSelectedEmp(null)}
+              className="w-full py-2 text-xs text-[#6E6E6A] hover:text-[#0A0A0A] font-normal cursor-pointer"
+            >
+              Choose a different staff member
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Subtle Bottom Note */}
-      <div className="text-center text-[11px] text-[#7A746A] pb-2">
-        Meats &amp; Plants · White Oak &amp; Terracotta
+      {/* Subtle Footer Note */}
+      <div className="text-center pt-2">
+        <p className="text-[11px] text-[#6E6E6A]">
+          Meats &amp; Plants · 10 Active Staff Members
+        </p>
       </div>
     </div>
   );

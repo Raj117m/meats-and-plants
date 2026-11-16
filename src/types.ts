@@ -11,6 +11,10 @@ export interface Employee {
   is_active: number;
   bonus_preference: 'pay' | 'leave';
   avatar_color: string;
+  break_bank_skipped?: number;
+  bonus_holidays_earned?: number;
+  bonus_holidays_used?: number;
+  paid_leaves_quota?: number;
   breakBank?: {
     totalSkipped: number;
     totalRedeemed: number;
@@ -56,13 +60,21 @@ export interface CafeLocation {
   created_at?: string;
 }
 
+export interface Holiday {
+  id: number;
+  date: string; // YYYY-MM-DD
+  name: string;
+  is_paid: number; // 1 or 0
+  created_at?: string;
+}
+
 export interface Punch {
   id: number;
   employee_id: number;
   type: 'check_in' | 'start_break' | 'end_break' | 'check_out';
   timestamp: string;
   date: string;
-  ssid: string;
+  ssid?: string;
   source: 'app' | 'manual' | 'auto';
   notes?: string | null;
   reviewed?: number;
@@ -87,6 +99,25 @@ export interface DayRecord {
   punches?: Punch[];
 }
 
+export interface DayState {
+  status: 'NOT_STARTED' | 'ON_SHIFT' | 'ON_BREAK' | 'ENDED';
+  shiftStart: string | null;
+  breakStart: string | null;
+  breakEnd: string | null;
+  breakUsed: boolean;
+  shiftEnd: string | null;
+  workedSeconds: number;
+  breakRemainingSeconds: number;
+  date: string;
+  isLate: boolean;
+  lateMinutes: number;
+  isHalfDay: boolean;
+  deduction: 'none' | 'half' | 'full';
+  breakSkipped: boolean;
+  employee?: Employee;
+  punches: Punch[];
+}
+
 export interface RosterItem {
   id: number;
   name: string;
@@ -98,6 +129,12 @@ export interface RosterItem {
   monthlySalary: number;
   bonusPreference: 'pay' | 'leave';
   status: 'on_floor' | 'on_break' | 'checked_out' | 'not_in_yet' | 'on_leave';
+  dayStateStatus?: 'NOT_STARTED' | 'ON_SHIFT' | 'ON_BREAK' | 'ENDED';
+  shiftStart?: string | null;
+  shiftEnd?: string | null;
+  breakStart?: string | null;
+  breakEnd?: string | null;
+  breakUsed?: boolean;
   checkInTime: string | null;
   checkInSource: 'app' | 'manual' | 'auto' | null;
   checkOutTime: string | null;
@@ -107,6 +144,8 @@ export interface RosterItem {
   workedSeconds: number;
   isLate: boolean;
   lateMinutes: number;
+  isHalfDay?: boolean;
+  breakSkipped?: boolean;
   dayRecord: DayRecord | null;
   punches: Punch[];
 }
@@ -165,34 +204,33 @@ export interface UnifiedInboxResponse {
 export interface PayrollEmployee {
   employeeId: number;
   employeeName: string;
+  role: string;
   payType: 'monthly' | 'daily';
-  dailyWage: number;
   baseSalary: number;
+  dailyWage: number;
   dailyRate: number;
   halfDayRate: number;
-  daysInMonth: number;
+  workingDays: number;
   presentDays: number;
-  lateDaysCount: number;
-  lateMarksLeftUntilDeduction: number;
-  lateMarkDeductionUnits: number;
-  lateMarkDeductionAmount: number;
   paidLeavesUsed: number;
   paidLeavesLeft: number;
-  totalUnpaidDays: number;
+  totalPaidLeavesQuota: number;
+  availableBonusHolidays: number;
+  holidayDaysCount: number;
+  unpaidDaysCount: number;
+  halfDaysCount: number;
+  grossSalary: number;
   unpaidDaysDeductionAmount: number;
-  manualHalfDaysCount: number;
   halfDaysDeductionAmount: number;
-  breaksBanked: number;
-  bankedBreaksRemainder: number;
-  availableBreakBank?: number;
-  canRedeemBreak?: boolean;
-  skippedBreaksNeeded: number;
-  breakBonusAmount: number;
-  breakBonusLeaves: number;
-  bonusPreference: 'pay' | 'leave';
   totalDeductions: number;
   netSalary: number;
-  todayEarning: number;
+  breaksBanked: number;
+  breakBankRemainder: number;
+  // Legacy compatibility
+  daysInMonth?: number;
+  lateDaysCount?: number;
+  breakBonusAmount?: number;
+  breakBonusLeaves?: number;
 }
 
 export interface PayrollMonthResponse {
@@ -200,15 +238,22 @@ export interface PayrollMonthResponse {
   daysInMonth: number;
   isFinalized: boolean;
   finalizedAt: string | null;
-  totals: {
-    totalBase: number;
-    totalNet: number;
+  summary: {
+    totalGross: number;
     totalDeductions: number;
-    totalBonuses: number;
-    totalLateMarks: number;
-    totalPaidLeavesUsed: number;
-    totalUnpaidDays: number;
+    totalBonus: number;
+    totalNetPayable: number;
   };
+  totals?: {
+    totalGross?: number;
+    totalDeductions?: number;
+    totalBonus?: number;
+    totalNetPayable?: number;
+    totalBase?: number;
+    totalNet?: number;
+  };
+  holidays?: Holiday[];
+  records: PayrollEmployee[];
   employees: PayrollEmployee[];
 }
 

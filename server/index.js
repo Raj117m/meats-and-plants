@@ -9,7 +9,9 @@ import {
   evaluateLateStatus,
   validateWifiSsid,
   calculateDistanceMeters,
-  validateGeofence
+  validateGeofence,
+  computeEmployeeDayState,
+  validateStateTransition
 } from './payrollEngine.js';
 import {
   executeAutoCheckout,
@@ -425,7 +427,8 @@ app.put('/api/employees/:id', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// LIVE ROSTER & TODAY STATUS
+// -------------------------------------------------------------
+// LIVE ROSTER & TODAY STATUS (Section 1 State Machine)
 // -------------------------------------------------------------
 app.get('/api/roster/today', (req, res) => {
   try {
@@ -442,43 +445,34 @@ app.get('/api/roster/today', (req, res) => {
       const dayRecord = db.prepare('SELECT * FROM days WHERE employee_id = ? AND date = ?').get(emp.id, date);
       const punches = db.prepare('SELECT * FROM punches WHERE employee_id = ? AND date = ? ORDER BY timestamp ASC').all(emp.id, date);
 
-      const checkInPunch = punches.find(p => p.type === 'check_in');
-      const checkOutPunch = punches.find(p => p.type === 'check_out');
-      const breakStartPunch = [...punches].reverse().find(p => p.type === 'start_break');
-      const breakEndPunch = [...punches].reverse().find(p => p.type === 'end_break');
+      const dayState = computeEmployeeDayState({
+        employee: emp,
+        date,
+        punches,
+        dayRecord,
+        nowMs: Date.now(),
+        breakLengthMinutes: settings.break_length_minutes || 180
+      });
 
-      let currentStatus = 'not_in_yet';
-      let breakSecondsLeft = 0;
-      let workedSeconds = 0;
-
-      const isBreakActive = breakStartPunch && (!breakEndPunch || new Date(breakEndPunch.timestamp) < new Date(breakStartPunch.timestamp));
-
+      let mappedStatus = 'not_in_yet';
       if (dayRecord && (dayRecord.status === 'paid_leave' || dayRecord.status === 'unpaid_leave' || dayRecord.status === 'upcoming_leave')) {
-        currentStatus = 'on_leave';
+        mappedStatus = 'on_leave';
         onLeaveCount++;
-      } else if (checkOutPunch) {
-        currentStatus = 'checked_out';
-      } else if (isBreakActive) {
-        currentStatus = 'on_break';
+      } else if (dayState.status === 'ENDED') {
+        mappedStatus = 'checked_out';
+      } else if (dayState.status === 'ON_BREAK') {
+        mappedStatus = 'on_break';
         onBreakCount++;
-        const breakStartTime = new Date(breakStartPunch.timestamp).getTime();
-        const now = Date.now();
-        const elapsedSec = Math.floor((now - breakStartTime) / 1000);
-        const totalBreakSec = (settings.break_length_minutes || 180) * 60;
-        breakSecondsLeft = Math.max(0, totalBreakSec - (elapsedSec % totalBreakSec));
-      } else if (checkInPunch) {
-        currentStatus = 'on_floor';
+      } else if (dayState.status === 'ON_SHIFT') {
+        mappedStatus = 'on_floor';
         onFloorCount++;
       } else {
-        currentStatus = 'not_in_yet';
+        mappedStatus = 'not_in_yet';
         notInYetCount++;
       }
 
-      if (checkInPunch) {
-        const checkInTime = new Date(checkInPunch.timestamp).getTime();
-        const endTime = checkOutPunch ? new Date(checkOutPunch.timestamp).getTime() : Date.now();
-        workedSeconds = Math.max(0, Math.floor((endTime - checkInTime) / 1000));
-      }
+      const checkInPunch = punches.find(p => p.type === 'check_in');
+      const checkOutPunch = punches.find(p => p.type === 'check_out');
 
       return {
         id: emp.id,
@@ -490,16 +484,24 @@ app.get('/api/roster/today', (req, res) => {
         dailyWage: emp.daily_wage,
         monthlySalary: emp.monthly_salary,
         bonusPreference: emp.bonus_preference,
-        status: currentStatus,
+        status: mappedStatus,
+        dayStateStatus: dayState.status,
+        shiftStart: dayState.shiftStart,
+        shiftEnd: dayState.shiftEnd,
+        breakStart: dayState.breakStart,
+        breakEnd: dayState.breakEnd,
+        breakUsed: dayState.breakUsed,
         checkInTime: checkInPunch ? checkInPunch.timestamp : null,
         checkInSource: checkInPunch ? checkInPunch.source : null,
         checkOutTime: checkOutPunch ? checkOutPunch.timestamp : null,
         checkOutSource: checkOutPunch ? checkOutPunch.source : null,
-        breakStartTime: isBreakActive ? breakStartPunch.timestamp : null,
-        breakSecondsLeft,
-        workedSeconds,
-        isLate: Boolean(dayRecord?.is_late),
-        lateMinutes: dayRecord?.late_minutes || 0,
+        breakStartTime: dayState.breakStart,
+        breakSecondsLeft: dayState.breakRemainingSeconds,
+        workedSeconds: dayState.workedSeconds,
+        isLate: dayState.isLate,
+        lateMinutes: dayState.lateMinutes,
+        isHalfDay: dayState.isHalfDay,
+        breakSkipped: dayState.breakSkipped,
         dayRecord: dayRecord || null,
         punches
       };
@@ -515,6 +517,43 @@ app.get('/api/roster/today', (req, res) => {
         total: employees.length
       },
       roster
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Single employee exact today state (Section 1 - restores exact timer on refresh)
+app.get('/api/today/:employeeId', (req, res) => {
+  try {
+    const employeeId = Number(req.params.employeeId);
+    const date = req.query.date || '2026-11-15';
+    const settings = getSettings();
+
+    const emp = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId);
+    if (!emp) return res.status(404).json({ error: 'Employee not found.' });
+
+    const punches = db.prepare('SELECT * FROM punches WHERE employee_id = ? AND date = ? ORDER BY timestamp ASC').all(employeeId, date);
+    const dayRecord = db.prepare('SELECT * FROM days WHERE employee_id = ? AND date = ?').get(employeeId, date);
+
+    const dayState = computeEmployeeDayState({
+      employee: emp,
+      date,
+      punches,
+      dayRecord,
+      nowMs: Date.now(),
+      breakLengthMinutes: settings.break_length_minutes || 180
+    });
+
+    res.json({
+      success: true,
+      ...dayState,
+      employee: emp,
+      breakBank: {
+        totalSkipped: emp.break_bank_skipped || 0,
+        bonusHolidaysEarned: emp.bonus_holidays_earned || 0,
+        bonusHolidaysAvailable: Math.max(0, (emp.bonus_holidays_earned || 0) - (emp.bonus_holidays_used || 0))
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -717,30 +756,76 @@ app.post('/api/roster/reset-employee-today', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// PUNCHES (Start Shift, Break, End Shift)
+// PUNCHES (Section 1: Unified State Machine Punch Endpoint)
+// POST /api/punch and POST /api/punches
 // -------------------------------------------------------------
-app.post('/api/punches', (req, res) => {
+function handleUnifiedPunch(req, res) {
   try {
-    const { employee_id, type, lat, lng, accuracy, notes, custom_time } = req.body;
+    const employeeId = Number(req.body.employeeId || req.body.employee_id);
+    const action = req.body.action || req.body.type;
+    const source = req.body.source || (req.path.includes('manual') ? 'manual' : 'app');
+    const customTime = req.body.time || req.body.custom_time;
+    const { lat, lng, accuracy, notes, reason } = req.body;
+
+    if (!employeeId) {
+      return res.status(400).json({ error: 'Employee ID is required.' });
+    }
+    if (!action) {
+      return res.status(400).json({ error: 'Punch action is required.' });
+    }
+
+    const emp = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId);
+    if (!emp) return res.status(404).json({ error: 'Employee not found.' });
+
     const settings = getSettings();
-    const isCheckOut = type === 'check_out';
+    let timestamp = customTime;
+    if (!timestamp) {
+      timestamp = new Date().toISOString();
+    } else if (!timestamp.includes('T')) {
+      const datePart = req.body.date || '2026-11-15';
+      const formattedTime = timestamp.length === 5 ? `${timestamp}:00` : timestamp;
+      timestamp = `${datePart}T${formattedTime}`;
+    }
+    const date = timestamp.split('T')[0];
+
+    // Fetch existing punches and day record for today
+    const existingPunches = db.prepare('SELECT * FROM punches WHERE employee_id = ? AND date = ? ORDER BY timestamp ASC').all(employeeId, date);
+    const existingDay = db.prepare('SELECT * FROM days WHERE employee_id = ? AND date = ?').get(employeeId, date);
+
+    // Compute current state before punch
+    const currentState = computeEmployeeDayState({
+      employee: emp,
+      date,
+      punches: existingPunches,
+      dayRecord: existingDay,
+      nowMs: new Date(timestamp).getTime(),
+      breakLengthMinutes: settings.break_length_minutes || 180
+    });
+
+    // Validate state transition
+    validateStateTransition(currentState.status, action, currentState.breakUsed);
+
+    // Geo check if source === 'app'
     let distanceM = null;
     let isOffsite = false;
+    const normAction = action.toLowerCase().replace(/_/g, '');
+    const isEndingShift = normAction === 'endshift' || normAction === 'checkout';
 
-    // Geo-lock enforcement (Multi-branch supported)
-    const numLat = lat != null ? Number(lat) : null;
-    const numLng = lng != null ? Number(lng) : null;
-    const numAcc = accuracy != null ? Number(accuracy) : 0;
+    if (source !== 'manual') {
+      const numLat = lat != null ? Number(lat) : null;
+      const numLng = lng != null ? Number(lng) : null;
+      const numAcc = accuracy != null ? Number(accuracy) : 0;
 
-    if (numLat != null && numLng != null && !isNaN(numLat) && !isNaN(numLng)) {
-      // Check against all active branch locations
+      if (numLat == null || numLng == null || isNaN(numLat) || isNaN(numLng)) {
+        return res.status(400).json({ error: 'Location coordinates (lat, lng) are required. Please ensure location is enabled.' });
+      }
+
       let branches = [];
       try {
         branches = db.prepare('SELECT * FROM locations').all();
       } catch {}
 
       let bestCheck = null;
-
       if (branches && branches.length > 0) {
         for (const loc of branches) {
           const check = validateGeofence({
@@ -772,153 +857,124 @@ app.post('/api/punches', (req, res) => {
 
       distanceM = bestCheck.distance;
 
-      // Start shift (check_in) and breaks strictly require being inside the geofence.
-      // End shift (check_out) is allowed even if outside so staff are never trapped.
       if (!bestCheck.allowed) {
-        if (isCheckOut) {
+        if (isEndingShift && settings.allow_offsite_checkout) {
           isOffsite = true;
         } else {
-          return res.status(403).json({
-            error: bestCheck.error
-          });
+          return res.status(403).json({ error: bestCheck.error });
         }
       }
-    } else {
-      return res.status(400).json({
-        error: 'Location coordinates (lat, lng) are required. Please ensure location is enabled.'
-      });
     }
 
-    const emp = db.prepare('SELECT * FROM employees WHERE id = ?').get(employee_id);
-    if (!emp) return res.status(404).json({ error: 'Employee not found' });
+    // Map to canonical punch type
+    let punchType = 'check_in';
+    if (normAction === 'startshift' || normAction === 'checkin') punchType = 'check_in';
+    else if (normAction === 'startbreak') punchType = 'start_break';
+    else if (normAction === 'endbreak') punchType = 'end_break';
+    else if (normAction === 'endshift' || normAction === 'checkout') punchType = 'check_out';
 
-    const timestamp = custom_time || new Date().toISOString();
-    const date = timestamp.split('T')[0];
-
-    let isLate = 0;
-    let lateMinutes = 0;
-    let dayStatus = 'present';
-
-    if (type === 'check_in') {
-      const lateEvaluation = evaluateLateStatus(timestamp, settings.shift_start, settings.grace_minutes);
-      if (lateEvaluation.isLate) {
-        isLate = 1;
-        lateMinutes = lateEvaluation.minutesLate;
-        dayStatus = 'late';
-      }
+    // Auto-close break if ending shift while on break
+    if (punchType === 'check_out' && currentState.status === 'ON_BREAK') {
+      db.prepare(`
+        INSERT INTO punches (employee_id, type, timestamp, date, ssid, source, notes, reviewed, lat, lng, accuracy, distance_m)
+        VALUES (?, 'end_break', ?, ?, 'GEOFENCE', ?, 'Auto-closed break on shift end', 1, ?, ?, ?, ?)
+      `).run(employeeId, timestamp, date, source, lat || null, lng || null, accuracy || null, distanceM);
     }
 
-    const distText = distanceM != null && isFinite(distanceM)
-      ? (distanceM >= 1000 ? `${(distanceM / 1000).toFixed(1)} km` : `${Math.round(distanceM)} m`)
-      : 'unknown';
-
-    let punchNotes = notes || null;
+    let punchNotes = notes || reason || (source === 'manual' ? 'Manual punch by Owner' : null);
     if (isOffsite) {
-      const offsiteTag = `Off-site checkout (${distText} away)`;
+      const offsiteTag = `Off-site checkout (${Math.round(distanceM || 0)}m away)`;
       punchNotes = punchNotes ? `${punchNotes} · ${offsiteTag}` : offsiteTag;
     }
 
     db.prepare(`
       INSERT INTO punches (employee_id, type, timestamp, date, ssid, source, notes, reviewed, lat, lng, accuracy, distance_m)
-      VALUES (?, ?, ?, ?, 'GEOFENCE', 'app', ?, 1, ?, ?, ?, ?)
-    `).run(employee_id, type, timestamp, date, punchNotes, numLat, numLng, numAcc || null, distanceM);
+      VALUES (?, ?, ?, ?, 'GEOFENCE', ?, ?, 1, ?, ?, ?, ?)
+    `).run(employeeId, punchType, timestamp, date, source, punchNotes, lat || null, lng || null, accuracy || null, distanceM);
 
-    const existingDay = db.prepare('SELECT * FROM days WHERE employee_id = ? AND date = ?').get(employee_id, date);
+    // Update Days table
+    if (punchType === 'check_in') {
+      const lateEval = evaluateLateStatus(timestamp, settings.shift_start, settings.grace_minutes);
+      const dayStatus = lateEval.isHalfDay ? 'half_day' : 'present';
+      const deduction = lateEval.deduction;
 
-    if (existingDay) {
-      let updatedStatus = existingDay.status;
-      if (type === 'check_in' && existingDay.manual_override === 0) {
-        updatedStatus = dayStatus;
+      if (existingDay) {
+        db.prepare(`
+          UPDATE days SET
+            status = CASE WHEN manual_override = 1 THEN status ELSE ? END,
+            deduction = CASE WHEN manual_override = 1 THEN deduction ELSE ? END,
+            is_late = CASE WHEN manual_override = 1 THEN is_late ELSE ? END,
+            late_minutes = CASE WHEN manual_override = 1 THEN late_minutes ELSE ? END,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(dayStatus, deduction, lateEval.isLate ? 1 : 0, lateEval.minutesLate, existingDay.id);
+      } else {
+        db.prepare(`
+          INSERT INTO days (employee_id, date, status, deduction, is_late, late_minutes, break_taken_minutes, break_skipped, manual_override, notes)
+          VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, ?)
+        `).run(employeeId, date, dayStatus, deduction, lateEval.isLate ? 1 : 0, lateEval.minutesLate, source === 'manual' ? 'Owner check-in' : 'App check-in');
       }
-      db.prepare(`
-        UPDATE days SET
-          status = ?,
-          is_late = CASE WHEN manual_override = 1 THEN is_late ELSE ? END,
-          late_minutes = CASE WHEN manual_override = 1 THEN late_minutes ELSE ? END,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(updatedStatus, isLate, lateMinutes, existingDay.id);
-    } else {
-      db.prepare(`
-        INSERT INTO days (employee_id, date, status, deduction, is_late, late_minutes, break_taken_minutes, break_skipped, manual_override, notes)
-        VALUES (?, ?, ?, 'none', ?, ?, 0, 0, 0, ?)
-      `).run(employee_id, date, dayStatus, isLate, lateMinutes, type === 'check_in' ? 'App check-in' : null);
+    } else if (punchType === 'check_out') {
+      const hadBreak = existingPunches.some(p => p.type === 'start_break');
+      const breakSkipped = !hadBreak;
+
+      if (breakSkipped) {
+        db.prepare(`
+          UPDATE days SET break_skipped = 1, updated_at = CURRENT_TIMESTAMP WHERE employee_id = ? AND date = ?
+        `).run(employeeId, date);
+
+        const newBank = (emp.break_bank_skipped || 0) + 1;
+        if (newBank >= 4) {
+          const bonusEarned = (emp.bonus_holidays_earned || 0) + 1;
+          const remainder = newBank % 4;
+          db.prepare(`
+            UPDATE employees SET break_bank_skipped = ?, bonus_holidays_earned = ? WHERE id = ?
+          `).run(remainder, bonusEarned, employeeId);
+
+          db.prepare(`
+            INSERT INTO push_notifications (employee_id, title, body, type, sent_at)
+            VALUES (?, '🎁 Bonus Paid Holiday Earned', 'You have banked 4 skipped breaks! 1 extra full-day paid holiday has been added to your balance.', 'break_bonus', CURRENT_TIMESTAMP)
+          `).run(employeeId);
+
+          db.prepare(`
+            INSERT INTO audit_log (employee_id, target_date, action, actor, details, timestamp)
+            VALUES (?, ?, 'break_bonus_holiday', 'System', ?, CURRENT_TIMESTAMP)
+          `).run(employeeId, date, `${emp.name} banked 4 skipped breaks and earned 1 bonus paid holiday!`);
+        } else {
+          db.prepare(`
+            UPDATE employees SET break_bank_skipped = ? WHERE id = ?
+          `).run(newBank, employeeId);
+        }
+      }
     }
 
-    // Auto mark break_skipped when checking out if no break was taken
-    if (type === 'check_out') {
-      const breakTaken = db.prepare("SELECT * FROM punches WHERE employee_id = ? AND date = ? AND type = 'start_break'").get(employee_id, date);
-      if (!breakTaken) {
-        db.prepare("UPDATE days SET break_skipped = 1 WHERE employee_id = ? AND date = ?").run(employee_id, date);
-      }
-    }
+    const updatedPunches = db.prepare('SELECT * FROM punches WHERE employee_id = ? AND date = ? ORDER BY timestamp ASC').all(employeeId, date);
+    const updatedDay = db.prepare('SELECT * FROM days WHERE employee_id = ? AND date = ?').get(employeeId, date);
+    const updatedEmp = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId);
+
+    const updatedState = computeEmployeeDayState({
+      employee: updatedEmp,
+      date,
+      punches: updatedPunches,
+      dayRecord: updatedDay,
+      nowMs: new Date(timestamp).getTime(),
+      breakLengthMinutes: settings.break_length_minutes || 180
+    });
 
     res.json({
       success: true,
-      punch: { employee_id, type, timestamp, date, distanceM, source: 'app' },
-      isLate: Boolean(isLate),
-      lateMinutes
+      ...updatedState,
+      employee: updatedEmp,
+      punch: { employee_id: employeeId, type: punchType, timestamp, date, source, distanceM }
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(400).json({ error: err.message });
   }
-});
+}
 
-// Manual Punch (Owner direct punch - bypasses geo-lock)
-app.post('/api/punches/manual', (req, res) => {
-  try {
-    const { employee_id, type, date, time, reason } = req.body;
-    const settings = getSettings();
-
-    const emp = db.prepare('SELECT * FROM employees WHERE id = ?').get(employee_id);
-    if (!emp) return res.status(404).json({ error: 'Employee not found' });
-
-    const formattedTime = time.includes(':') ? time : `${time}:00`;
-    const timestamp = `${date}T${formattedTime.length === 5 ? formattedTime + ':00' : formattedTime}`;
-
-    db.prepare(`
-      INSERT INTO punches (employee_id, type, timestamp, date, ssid, source, notes, reviewed, lat, lng, accuracy, distance_m)
-      VALUES (?, ?, ?, ?, 'MANUAL', 'manual', ?, 1, NULL, NULL, NULL, 0)
-    `).run(employee_id, type, timestamp, date, reason || 'Owner manual punch');
-
-    db.prepare(`
-      INSERT INTO audit_log (employee_id, target_date, action, actor, details, timestamp)
-      VALUES (?, ?, 'manual_punch', 'Owner', ?, CURRENT_TIMESTAMP)
-    `).run(employee_id, date, `Manual ${type.replace('_', ' ')} for ${emp.name} at ${time}. Reason: ${reason || 'N/A'}`);
-
-    if (type === 'check_in') {
-      const lateEvaluation = evaluateLateStatus(formattedTime, settings.shift_start, settings.grace_minutes);
-      const isLate = lateEvaluation.isLate ? 1 : 0;
-      const lateMin = lateEvaluation.minutesLate;
-
-      db.prepare(`
-        INSERT INTO days (employee_id, date, status, deduction, is_late, late_minutes, break_taken_minutes, break_skipped, manual_override, notes)
-        VALUES (?, ?, ?, 'none', ?, ?, 0, 0, 1, ?)
-        ON CONFLICT(employee_id, date) DO UPDATE SET
-          status = excluded.status,
-          is_late = excluded.is_late,
-          late_minutes = excluded.late_minutes,
-          notes = excluded.notes,
-          manual_override = 1,
-          updated_at = CURRENT_TIMESTAMP
-      `).run(employee_id, date, isLate ? 'late' : 'present', isLate, lateMin, `Manual punch: ${reason || 'Owner entry'}`);
-    }
-
-    if (type === 'check_out') {
-      const breakTaken = db.prepare("SELECT * FROM punches WHERE employee_id = ? AND date = ? AND type = 'start_break'").get(employee_id, date);
-      if (!breakTaken) {
-        db.prepare("UPDATE days SET break_skipped = 1 WHERE employee_id = ? AND date = ?").run(employee_id, date);
-      }
-    }
-
-    res.json({
-      success: true,
-      punch: { employee_id, type, timestamp, date, source: 'manual' }
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.post('/api/punch', handleUnifiedPunch);
+app.post('/api/punches', handleUnifiedPunch);
+app.post('/api/punches/manual', handleUnifiedPunch);
 
 // Break Bank Redemption (Staff Page)
 app.post('/api/employees/:id/redeem-break', (req, res) => {
@@ -1123,6 +1179,80 @@ app.put('/api/inbox/auto-checkout/:id', (req, res) => {
 });
 
 // -------------------------------------------------------------
+// HOLIDAYS (Section 4: Indian Gazetted / National Holidays)
+// -------------------------------------------------------------
+app.get('/api/holidays', (req, res) => {
+  try {
+    const { year, month } = req.query;
+    let query = 'SELECT * FROM holidays';
+    const params = [];
+    if (year) {
+      query += ' WHERE date LIKE ?';
+      params.push(`${year}%`);
+    } else if (month) {
+      query += ' WHERE date LIKE ?';
+      params.push(`${month}%`);
+    }
+    query += ' ORDER BY date ASC';
+    const list = db.prepare(query).all(...params);
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/holidays', (req, res) => {
+  try {
+    const { date, name, is_paid = 1 } = req.body;
+    if (!date || !name) return res.status(400).json({ error: 'Date and name are required' });
+    db.prepare(`
+      INSERT INTO holidays (date, name, is_paid)
+      VALUES (?, ?, ?)
+      ON CONFLICT(date) DO UPDATE SET name = excluded.name, is_paid = excluded.is_paid
+    `).run(date, name, is_paid ? 1 : 0);
+
+    db.prepare(`
+      INSERT INTO audit_log (employee_id, target_date, action, actor, details, timestamp)
+      VALUES (NULL, ?, 'holiday_add', 'Owner', ?, CURRENT_TIMESTAMP)
+    `).run(date, `Added/updated holiday: ${name} on ${date}`);
+
+    const created = db.prepare('SELECT * FROM holidays WHERE date = ?').get(date);
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/holidays/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { date, name, is_paid } = req.body;
+    db.prepare(`
+      UPDATE holidays SET
+        date = COALESCE(?, date),
+        name = COALESCE(?, name),
+        is_paid = COALESCE(?, is_paid)
+      WHERE id = ?
+    `).run(date, name, is_paid !== undefined ? (is_paid ? 1 : 0) : null, id);
+
+    const updated = db.prepare('SELECT * FROM holidays WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/holidays/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    db.prepare('DELETE FROM holidays WHERE id = ?').run(id);
+    res.json({ success: true, message: 'Holiday deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // ATTENDANCE CALENDAR & DAY DRAWER (Supports any YYYY-MM)
 // -------------------------------------------------------------
 app.get('/api/attendance/month', (req, res) => {
@@ -1132,6 +1262,7 @@ app.get('/api/attendance/month', (req, res) => {
     const days = db.prepare("SELECT * FROM days WHERE date LIKE ?").all(`${month}%`);
     const punches = db.prepare("SELECT * FROM punches WHERE date LIKE ? ORDER BY timestamp ASC").all(`${month}%`);
     const pendingLeaves = db.prepare("SELECT * FROM leave_requests WHERE status = 'pending' AND (start_date LIKE ? OR end_date LIKE ?)").all(`${month}%`, `${month}%`);
+    const holidays = db.prepare("SELECT * FROM holidays WHERE date LIKE ? ORDER BY date ASC").all(`${month}%`);
 
     const punchMap = {};
     for (const p of punches) {
@@ -1153,7 +1284,8 @@ app.get('/api/attendance/month', (req, res) => {
       month,
       employees,
       dayMap,
-      pendingLeaves
+      pendingLeaves,
+      holidays
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1240,6 +1372,7 @@ app.get('/api/payroll/month', (req, res) => {
     const month = req.query.month || '2026-11';
     const settings = getSettings();
     const employees = db.prepare('SELECT * FROM employees WHERE is_active = 1 ORDER BY id ASC').all();
+    const holidays = db.prepare('SELECT * FROM holidays WHERE date LIKE ? ORDER BY date ASC').all(`${month}%`);
 
     const [year, m] = month.split('-').map(Number);
     const daysInMonth = new Date(year, m, 0).getDate();
@@ -1248,37 +1381,26 @@ app.get('/api/payroll/month', (req, res) => {
 
     const employeeBreakdowns = employees.map(emp => {
       const days = db.prepare('SELECT * FROM days WHERE employee_id = ? AND date LIKE ?').all(emp.id, `${month}%`);
-      const redemptions = db.prepare('SELECT * FROM break_redemptions WHERE employee_id = ? AND month = ?').all(emp.id, month);
-      const totalSkippedBreaksAllTime = db.prepare('SELECT COUNT(*) as c FROM days WHERE employee_id = ? AND break_skipped = 1').get(emp.id).c;
-      const totalRedeemedBreaksAllTime = db.prepare('SELECT COALESCE(SUM(breaks_redeemed), 0) as c FROM break_redemptions WHERE employee_id = ?').get(emp.id).c;
 
       return calculateEmployeePayroll({
         employee: emp,
         days,
-        redemptions,
-        totalSkippedBreaksAllTime,
-        totalRedeemedBreaksAllTime,
+        holidays,
         settings,
         daysInMonth
       });
     });
 
-    const totals = employeeBreakdowns.reduce((acc, curr) => ({
-      totalBase: acc.totalBase + curr.baseSalary,
-      totalNet: acc.totalNet + curr.netSalary,
+    const summary = employeeBreakdowns.reduce((acc, curr) => ({
+      totalGross: acc.totalGross + curr.grossSalary,
       totalDeductions: acc.totalDeductions + curr.totalDeductions,
-      totalBonuses: acc.totalBonuses + curr.breakBonusAmount,
-      totalLateMarks: acc.totalLateMarks + curr.lateDaysCount,
-      totalPaidLeavesUsed: acc.totalPaidLeavesUsed + curr.paidLeavesUsed,
-      totalUnpaidDays: acc.totalUnpaidDays + curr.totalUnpaidDays
+      totalBonus: acc.totalBonus + curr.availableBonusHolidays,
+      totalNetPayable: acc.totalNetPayable + curr.netSalary
     }), {
-      totalBase: 0,
-      totalNet: 0,
+      totalGross: 0,
       totalDeductions: 0,
-      totalBonuses: 0,
-      totalLateMarks: 0,
-      totalPaidLeavesUsed: 0,
-      totalUnpaidDays: 0
+      totalBonus: 0,
+      totalNetPayable: 0
     });
 
     res.json({
@@ -1287,7 +1409,10 @@ app.get('/api/payroll/month', (req, res) => {
       isFinalized: Boolean(payrollRecord?.is_finalized),
       finalizedAt: payrollRecord?.finalized_at || null,
       payrollRecord,
-      totals,
+      summary,
+      totals: summary,
+      holidays,
+      records: employeeBreakdowns,
       employees: employeeBreakdowns
     });
   } catch (err) {

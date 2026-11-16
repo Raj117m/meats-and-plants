@@ -1,4 +1,4 @@
-import { Employee, Settings, RosterResponse } from '../types';
+import { Employee, Settings, Holiday } from '../types';
 
 export const DEFAULT_STAFF: Employee[] = [
   {
@@ -13,7 +13,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-06-01',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#2F7D4F',
+    avatar_color: '#2E7D4F',
+    break_bank_skipped: 3,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 3, totalRedeemed: 0, available: 3, needed: 4, canRedeem: false },
     pendingLeaves: []
   },
@@ -29,7 +33,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-07-15',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#C0573E',
+    avatar_color: '#B7791F',
+    break_bank_skipped: 2,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 2, totalRedeemed: 0, available: 2, needed: 4, canRedeem: false },
     pendingLeaves: []
   },
@@ -45,7 +53,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-08-01',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#4A7BB7',
+    avatar_color: '#3B5BA9',
+    break_bank_skipped: 0,
+    bonus_holidays_earned: 1,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 4, totalRedeemed: 0, available: 4, needed: 4, canRedeem: true },
     pendingLeaves: []
   },
@@ -61,7 +73,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-09-10',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#E8B44A',
+    avatar_color: '#B7791F',
+    break_bank_skipped: 1,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 1, totalRedeemed: 0, available: 1, needed: 4, canRedeem: false },
     pendingLeaves: []
   },
@@ -77,7 +93,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-05-20',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#2F7D4F',
+    avatar_color: '#2E7D4F',
+    break_bank_skipped: 0,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 0, totalRedeemed: 0, available: 0, needed: 4, canRedeem: false },
     pendingLeaves: []
   },
@@ -93,7 +113,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-10-01',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#C0573E',
+    avatar_color: '#B0235F',
+    break_bank_skipped: 3,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 3, totalRedeemed: 0, available: 3, needed: 4, canRedeem: false },
     pendingLeaves: []
   },
@@ -109,7 +133,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-11-01',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#4A7BB7',
+    avatar_color: '#3B5BA9',
+    break_bank_skipped: 1,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 1, totalRedeemed: 0, available: 1, needed: 4, canRedeem: false },
     pendingLeaves: []
   },
@@ -125,7 +153,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-07-01',
     is_active: 1,
     bonus_preference: 'leave',
-    avatar_color: '#E8B44A',
+    avatar_color: '#B7791F',
+    break_bank_skipped: 0,
+    bonus_holidays_earned: 1,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 4, totalRedeemed: 0, available: 4, needed: 4, canRedeem: true },
     pendingLeaves: []
   },
@@ -141,7 +173,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-09-15',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#2F7D4F',
+    avatar_color: '#2E7D4F',
+    break_bank_skipped: 2,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 2, totalRedeemed: 0, available: 2, needed: 4, canRedeem: false },
     pendingLeaves: []
   },
@@ -157,7 +193,11 @@ export const DEFAULT_STAFF: Employee[] = [
     joining_date: '2025-08-10',
     is_active: 1,
     bonus_preference: 'pay',
-    avatar_color: '#7A746A',
+    avatar_color: '#6E6E6A',
+    break_bank_skipped: 0,
+    bonus_holidays_earned: 0,
+    bonus_holidays_used: 0,
+    paid_leaves_quota: 3,
     breakBank: { totalSkipped: 0, totalRedeemed: 0, available: 0, needed: 4, canRedeem: false },
     pendingLeaves: []
   }
@@ -172,7 +212,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paid_leaves_per_month: 3,
   break_length_minutes: 180,
   skipped_breaks_needed: 4,
-  bonus_type: 'pay',
+  bonus_type: 'leave',
   auto_checkout_time: '00:00',
   allowed_ssids: 'ABHIGIT 5G',
   cafe_name: 'Meats & Plants',
@@ -186,3 +226,40 @@ export const DEFAULT_SETTINGS: Settings = {
   store_address: 'Sparta Building, Park Avenue, Hiranandani Estate, Thane West, Maharashtra 400607',
   allow_offsite_checkout: 1
 };
+
+export const DEFAULT_HOLIDAYS: Holiday[] = [
+  // 2026
+  { id: 1, date: '2026-01-26', name: 'Republic Day', is_paid: 1 },
+  { id: 2, date: '2026-02-17', name: 'Maha Shivratri', is_paid: 1 },
+  { id: 3, date: '2026-03-04', name: 'Holi', is_paid: 1 },
+  { id: 4, date: '2026-04-03', name: 'Good Friday', is_paid: 1 },
+  { id: 5, date: '2026-04-14', name: 'Dr. Ambedkar Jayanti', is_paid: 1 },
+  { id: 6, date: '2026-05-01', name: 'Maharashtra Day / Labour Day', is_paid: 1 },
+  { id: 7, date: '2026-05-31', name: 'Bakrid / Eid al-Adha', is_paid: 1 },
+  { id: 8, date: '2026-08-15', name: 'Independence Day', is_paid: 1 },
+  { id: 9, date: '2026-08-28', name: 'Raksha Bandhan', is_paid: 1 },
+  { id: 10, date: '2026-09-04', name: 'Janmashtami', is_paid: 1 },
+  { id: 11, date: '2026-09-15', name: 'Milad-un-Nabi', is_paid: 1 },
+  { id: 12, date: '2026-10-02', name: 'Mahatma Gandhi Jayanti', is_paid: 1 },
+  { id: 13, date: '2026-10-20', name: 'Dussehra (Vijayadashami)', is_paid: 1 },
+  { id: 14, date: '2026-11-08', name: 'Diwali (Laxmi Pujan)', is_paid: 1 },
+  { id: 15, date: '2026-11-10', name: 'Bhai Dooj', is_paid: 1 },
+  { id: 16, date: '2026-11-24', name: 'Guru Nanak Jayanti', is_paid: 1 },
+  { id: 17, date: '2026-12-25', name: 'Christmas Day', is_paid: 1 },
+  // 2027
+  { id: 18, date: '2027-01-26', name: 'Republic Day', is_paid: 1 },
+  { id: 19, date: '2027-03-08', name: 'Maha Shivratri', is_paid: 1 },
+  { id: 20, date: '2027-03-23', name: 'Holi', is_paid: 1 },
+  { id: 21, date: '2027-03-26', name: 'Good Friday', is_paid: 1 },
+  { id: 22, date: '2027-04-14', name: 'Dr. Ambedkar Jayanti', is_paid: 1 },
+  { id: 23, date: '2027-05-01', name: 'Maharashtra Day / Labour Day', is_paid: 1 },
+  { id: 24, date: '2027-05-20', name: 'Eid al-Adha', is_paid: 1 },
+  { id: 25, date: '2027-08-15', name: 'Independence Day', is_paid: 1 },
+  { id: 26, date: '2027-08-17', name: 'Raksha Bandhan', is_paid: 1 },
+  { id: 27, date: '2027-08-25', name: 'Janmashtami', is_paid: 1 },
+  { id: 28, date: '2027-10-02', name: 'Mahatma Gandhi Jayanti', is_paid: 1 },
+  { id: 29, date: '2027-10-10', name: 'Dussehra', is_paid: 1 },
+  { id: 30, date: '2027-10-29', name: 'Diwali', is_paid: 1 },
+  { id: 31, date: '2027-11-14', name: 'Guru Nanak Jayanti', is_paid: 1 },
+  { id: 32, date: '2027-12-25', name: 'Christmas Day', is_paid: 1 }
+];

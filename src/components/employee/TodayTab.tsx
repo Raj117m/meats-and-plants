@@ -1,26 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation } from '../../context/LocationContext';
 import { api } from '../../api';
-import { LocationPill } from '../common/LocationPill';
+import { DayState } from '../../types';
 import { StaffMapCard } from './StaffMapCard';
 import { PunchFixModal } from './PunchFixModal';
+import { RulesModal } from '../common/RulesModal';
 import { formatTime12, formatCountdown, formatDuration } from '../../utils/time';
 import { formatDistance, calculateDistanceMeters } from '../../utils/geo';
-import confetti from 'canvas-confetti';
 import {
   Coffee,
   LogOut,
-  CheckCircle2,
   Clock,
-  Lock,
-  AlertTriangle,
   Play,
-  PlayCircle,
+  RotateCcw,
+  Info,
+  AlertCircle,
   MapPin,
   RefreshCw,
-  Navigation,
-  RotateCcw
+  CheckCircle2
 } from 'lucide-react';
 
 interface TodayTabProps {
@@ -31,125 +29,111 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
   const { currentStaff, switchStaff } = useAuth();
   const {
     isInsideGeofence,
-    isWeakGps,
     userLocation,
     distanceM,
     storeCoords,
-    permissionStatus,
-    mockMode,
     isLocating,
     locatingAccuracy,
     refreshLocation,
     requestLiveLocation,
-    stopSharingLocation,
-    setMockMode,
     setShowHelpModal
   } = useLocation();
 
   const [loading, setLoading] = useState(false);
-  const [isRequestingLocation, setIsRequestingLocation] = useState(false);
-  const [successAnimation, setSuccessAnimation] = useState(false);
-  const [rosterData, setRosterData] = useState<any>(null);
+  const [dayState, setDayState] = useState<DayState | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fixModalOpen, setFixModalOpen] = useState(false);
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
 
-  // Live timer states
-  const [workedSeconds, setWorkedSeconds] = useState(0);
-  const [breakSecondsLeft, setBreakSecondsLeft] = useState(0);
+  // Dynamic seconds for live rendering
+  const [liveWorkedSeconds, setLiveWorkedSeconds] = useState(0);
+  const [liveBreakSecondsLeft, setLiveBreakSecondsLeft] = useState(0);
 
-  const fetchTodayStatus = async () => {
+  // Fetch authoritative state from backend
+  const fetchState = async () => {
     if (!currentStaff?.id) return;
     try {
-      const data = await api.getTodayRoster('2026-11-15');
-      const myRoster = data.roster.find((r) => r.id === currentStaff.id);
-      setRosterData(myRoster);
-
-      if (myRoster) {
-        setWorkedSeconds(myRoster.workedSeconds || 0);
-        setBreakSecondsLeft(myRoster.breakSecondsLeft || 0);
-      }
+      const state = await api.getTodayState(currentStaff.id, '2026-11-15');
+      setDayState(state);
+      setLiveWorkedSeconds(state.workedSeconds || 0);
+      setLiveBreakSecondsLeft(state.breakRemainingSeconds || 0);
     } catch (err) {
-      console.error('Failed to load roster:', err);
-    }
-  };
-
-  const handleResetToday = async () => {
-    if (!currentStaff?.id) return;
-    try {
-      setLoading(true);
-      await api.resetEmployeeToday(currentStaff.id, '2026-11-15');
-      await fetchTodayStatus();
-      if (onRefreshNeeded) onRefreshNeeded();
-    } catch (err: any) {
-      alert(`Error resetting: ${err.message}`);
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch today state:', err);
     }
   };
 
   useEffect(() => {
-    fetchTodayStatus();
-    const interval = setInterval(fetchTodayStatus, 8000);
+    fetchState();
+    const interval = setInterval(fetchState, 10000); // Polling every 10s as background sync
     return () => clearInterval(interval);
   }, [currentStaff?.id]);
 
+  // Section 1: Timer dial driven strictly by shiftStart from server
+  // worked = now - shiftStart - breakDuration
   useEffect(() => {
+    if (!dayState?.shiftStart || (dayState.status !== 'ON_SHIFT' && dayState.status !== 'ON_BREAK')) {
+      return;
+    }
+
+    const startMs = new Date(dayState.shiftStart).getTime();
+    const bStartMs = dayState.breakStart ? new Date(dayState.breakStart).getTime() : null;
+    const bEndMs = dayState.breakEnd ? new Date(dayState.breakEnd).getTime() : null;
+    const maxBreakSec = 180 * 60; // 3 hours
+
     const timer = setInterval(() => {
-      if (rosterData?.status === 'on_floor') {
-        setWorkedSeconds((prev) => prev + 1);
-      } else if (rosterData?.status === 'on_break' && breakSecondsLeft > 0) {
-        setBreakSecondsLeft((prev) => Math.max(0, prev - 1));
+      const nowMs = Date.now();
+
+      if (dayState.status === 'ON_BREAK' && bStartMs) {
+        const elapsedBreak = Math.floor((nowMs - bStartMs) / 1000);
+        const remaining = Math.max(0, maxBreakSec - elapsedBreak);
+        setLiveBreakSecondsLeft(remaining);
+
+        // Worked time frozen at break start
+        setLiveWorkedSeconds(Math.max(0, Math.floor((bStartMs - startMs) / 1000)));
+
+        // If 3 hours elapsed, trigger auto refresh
+        if (remaining <= 0) {
+          fetchState();
+        }
+      } else if (dayState.status === 'ON_SHIFT') {
+        let breakDurationMs = 0;
+        if (bStartMs) {
+          const actualEnd = bEndMs || Math.min(nowMs, bStartMs + maxBreakSec * 1000);
+          breakDurationMs = Math.max(0, actualEnd - bStartMs);
+        }
+        const worked = Math.max(0, Math.floor((nowMs - startMs - breakDurationMs) / 1000));
+        setLiveWorkedSeconds(worked);
       }
     }, 1000);
-    return () => clearInterval(timer);
-  }, [rosterData?.status, breakSecondsLeft]);
 
-  const verifyLocationOrThrow = async () => {
+    return () => clearInterval(timer);
+  }, [dayState?.shiftStart, dayState?.breakStart, dayState?.breakEnd, dayState?.status]);
+
+  // Section 1: Verify location with a strict 15s timeout
+  const verifyLocationWithTimeout = async (): Promise<{ lat: number; lng: number; accuracy: number }> => {
     if (userLocation && userLocation.accuracy <= 150) {
       return userLocation;
     }
-    const pos = await refreshLocation();
-    if (!pos) {
-      setShowHelpModal(true);
-      throw new Error('Location is off or blocked. Please allow location access to continue.');
-    }
-    if (pos.accuracy > 150) {
-      throw new Error(`Weak GPS signal (±${Math.round(pos.accuracy)}m). Step near a window and tap retry.`);
-    }
-    return pos;
-  };
 
-  const isPosInsideSpartaOrGeofence = (pos: { lat: number; lng: number; accuracy?: number }) => {
-    const freshDist = calculateDistanceMeters(pos.lat, pos.lng, storeCoords.lat, storeCoords.lng);
-    const accuracy = pos.accuracy || 0;
-    const freshEffective = freshDist - Math.min(accuracy, 50);
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('GPS signal timeout (15s). Step near a window or check location permission.'));
+      }, 15000);
 
-    const isStoreAtSparta = Math.abs(storeCoords.lat - 19.2604227) < 0.005 && Math.abs(storeCoords.lng - 72.9794437) < 0.005;
-    const isInsideSpartaBox = isStoreAtSparta && (
-      pos.lat >= 19.2580 &&
-      pos.lat <= 19.2630 &&
-      pos.lng >= 72.9770 &&
-      pos.lng <= 72.9820
-    );
-
-    const isAllowed = isInsideSpartaBox || freshEffective <= storeCoords.radius || freshDist <= storeCoords.radius;
-    return { isAllowed, freshDist, freshEffective };
-  };
-
-  const handleEnableLocation = async () => {
-    setIsRequestingLocation(true);
-    setErrorMessage(null);
-    try {
-      const res = await requestLiveLocation();
-      if (!res.success) {
-        setShowHelpModal(true);
-      }
-    } catch (err: any) {
-      setShowHelpModal(true);
-      setErrorMessage(err.message || 'Location access failed');
-    } finally {
-      setIsRequestingLocation(false);
-    }
+      requestLiveLocation()
+        .then((res) => {
+          clearTimeout(timeoutId);
+          if (res.success && res.coords) {
+            resolve({ lat: res.coords.lat, lng: res.coords.lng, accuracy: res.coords.accuracy || 20 });
+          } else {
+            reject(new Error(res.error || 'Could not access GPS location.'));
+          }
+        })
+        .catch((err) => {
+          clearTimeout(timeoutId);
+          reject(err);
+        });
+    });
   };
 
   const handleStartShift = async () => {
@@ -157,48 +141,35 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
     setErrorMessage(null);
 
     try {
-      const pos = await verifyLocationOrThrow();
-      const check = isPosInsideSpartaOrGeofence(pos);
+      const pos = await verifyLocationWithTimeout();
+      const dist = calculateDistanceMeters(pos.lat, pos.lng, storeCoords.lat, storeCoords.lng);
+      const effectiveDist = dist - Math.min(pos.accuracy || 0, 50);
 
-      if (!check.isAllowed) {
-        setErrorMessage(`📍 You are ${formatDistance(check.freshDist)} away from Sparta Building. You must be inside or very near Meats & Plants (${storeCoords.radius}m) to start your shift.`);
+      const isStoreAtSparta = Math.abs(storeCoords.lat - 19.2604227) < 0.005 && Math.abs(storeCoords.lng - 72.9794437) < 0.005;
+      const isInsideSpartaBox = isStoreAtSparta && (pos.lat >= 19.2580 && pos.lat <= 19.2630 && pos.lng >= 72.9770 && pos.lng <= 72.9820);
+
+      if (!isInsideSpartaBox && effectiveDist > storeCoords.radius && dist > storeCoords.radius) {
+        setErrorMessage(`📍 You are ${formatDistance(dist)} from Sparta Building. Must be inside Meats & Plants (${storeCoords.radius}m) to start shift.`);
         return;
       }
 
-      // Celebratory confetti animation on shift start
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ['#2F7D4F', '#EAF5EE', '#C0573E']
-      });
-
-      setSuccessAnimation(true);
-      setTimeout(() => setSuccessAnimation(false), 2500);
-
-      const nowIso = new Date().toISOString();
-      // Start live clock immediately
-      setWorkedSeconds(1);
-      setRosterData((prev: any) => ({
-        ...(prev || {}),
-        status: 'on_floor',
-        checkInTime: nowIso,
-        workedSeconds: 1
-      }));
-
-      await api.submitPunch({
-        employee_id: currentStaff!.id,
-        type: 'check_in',
+      const res = await api.submitPunch({
+        employeeId: currentStaff!.id,
+        action: 'startShift',
+        source: 'app',
         lat: pos.lat,
         lng: pos.lng,
-        accuracy: pos.accuracy,
-        custom_time: nowIso
+        accuracy: pos.accuracy
       });
 
-      await fetchTodayStatus();
+      // Update state solely from server response
+      setDayState(res);
+      setLiveWorkedSeconds(res.workedSeconds || 0);
+      setLiveBreakSecondsLeft(res.breakRemainingSeconds || 0);
+
       if (onRefreshNeeded) onRefreshNeeded();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Could not start shift');
+      setErrorMessage(err.message || 'Failed to start shift');
     } finally {
       setLoading(false);
     }
@@ -209,26 +180,33 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
     setErrorMessage(null);
 
     try {
-      const pos = await verifyLocationOrThrow();
-      const check = isPosInsideSpartaOrGeofence(pos);
-      if (!check.isAllowed) {
-        setErrorMessage(`📍 You're outside Sparta Building (${formatDistance(check.freshDist)} away). Must be inside Meats & Plants (${storeCoords.radius}m) to start break.`);
+      const pos = await verifyLocationWithTimeout();
+      const dist = calculateDistanceMeters(pos.lat, pos.lng, storeCoords.lat, storeCoords.lng);
+      const effectiveDist = dist - Math.min(pos.accuracy || 0, 50);
+
+      const isStoreAtSparta = Math.abs(storeCoords.lat - 19.2604227) < 0.005 && Math.abs(storeCoords.lng - 72.9794437) < 0.005;
+      const isInsideSpartaBox = isStoreAtSparta && (pos.lat >= 19.2580 && pos.lat <= 19.2630 && pos.lng >= 72.9770 && pos.lng <= 72.9820);
+
+      if (!isInsideSpartaBox && effectiveDist > storeCoords.radius && dist > storeCoords.radius) {
+        setErrorMessage(`📍 You are ${formatDistance(dist)} away from the café. Must be inside to start break.`);
         return;
       }
 
-      const nowIso = new Date().toISOString();
-      await api.submitPunch({
-        employee_id: currentStaff!.id,
-        type: 'start_break',
+      const res = await api.submitPunch({
+        employeeId: currentStaff!.id,
+        action: 'startBreak',
+        source: 'app',
         lat: pos.lat,
         lng: pos.lng,
-        accuracy: pos.accuracy,
-        custom_time: nowIso
+        accuracy: pos.accuracy
       });
-      await fetchTodayStatus();
+
+      setDayState(res);
+      setLiveBreakSecondsLeft(res.breakRemainingSeconds || 180 * 60);
+
       if (onRefreshNeeded) onRefreshNeeded();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to start break');
+      setErrorMessage(err.message || 'Could not start break');
     } finally {
       setLoading(false);
     }
@@ -239,502 +217,320 @@ export const TodayTab: React.FC<TodayTabProps> = ({ onRefreshNeeded }) => {
     setErrorMessage(null);
 
     try {
-      const pos = await verifyLocationOrThrow();
-      const check = isPosInsideSpartaOrGeofence(pos);
-      if (!check.isAllowed) {
-        setErrorMessage(`📍 You're outside Sparta Building (${formatDistance(check.freshDist)} away). Return inside Meats & Plants to resume shift.`);
-        return;
-      }
-
-      const nowIso = new Date().toISOString();
-      await api.submitPunch({
-        employee_id: currentStaff!.id,
-        type: 'end_break',
-        lat: pos.lat,
-        lng: pos.lng,
-        accuracy: pos.accuracy,
-        custom_time: nowIso
+      const res = await api.submitPunch({
+        employeeId: currentStaff!.id,
+        action: 'endBreak',
+        source: 'app',
+        lat: userLocation?.lat,
+        lng: userLocation?.lng,
+        accuracy: userLocation?.accuracy
       });
-      await fetchTodayStatus();
+
+      setDayState(res);
+      setLiveBreakSecondsLeft(0);
+
       if (onRefreshNeeded) onRefreshNeeded();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to end break');
+      setErrorMessage(err.message || 'Could not end break');
     } finally {
       setLoading(false);
     }
   };
 
   const handleEndShift = async () => {
+    const confirmEnd = window.confirm('Are you sure you want to end your shift for today?');
+    if (!confirmEnd) return;
+
     setLoading(true);
     setErrorMessage(null);
 
     try {
-      const pos = await verifyLocationOrThrow();
-      const check = isPosInsideSpartaOrGeofence(pos);
+      const pos = userLocation || { lat: storeCoords.lat, lng: storeCoords.lng, accuracy: 20 };
 
-      if (!check.isAllowed) {
-        setErrorMessage(`📍 You are outside Sparta Building (${formatDistance(check.freshDist)} away). You must be inside Meats & Plants (${storeCoords.radius}m) to end your shift.`);
-        return;
-      }
-
-      if (!confirm('Ready to Stop Shift (check out) for today at Meats & Plants?')) {
-        return;
-      }
-
-      const nowIso = new Date().toISOString();
-      await api.submitPunch({
-        employee_id: currentStaff!.id,
-        type: 'check_out',
+      const res = await api.submitPunch({
+        employeeId: currentStaff!.id,
+        action: 'endShift',
+        source: 'app',
         lat: pos.lat,
         lng: pos.lng,
-        accuracy: pos.accuracy,
-        custom_time: nowIso
+        accuracy: pos.accuracy
       });
 
-      await fetchTodayStatus();
+      setDayState(res);
       if (onRefreshNeeded) onRefreshNeeded();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Stop shift failed');
+      setErrorMessage(err.message || 'Could not end shift');
     } finally {
       setLoading(false);
     }
   };
 
-  const status = rosterData?.status || 'not_in_yet';
-  const firstName = currentStaff?.name ? currentStaff.name.split(' ')[0] : 'Staff';
+  const handleResetShift = async () => {
+    if (!currentStaff?.id) return;
+    try {
+      setLoading(true);
+      await api.resetEmployeeToday(currentStaff.id, '2026-11-15');
+      await fetchState();
+      if (onRefreshNeeded) onRefreshNeeded();
+    } catch (err: any) {
+      alert(`Error resetting: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentStatus = dayState?.status || 'NOT_STARTED';
+
+  // Circular timer dial calculations
+  const totalShiftSeconds = 12 * 3600; // 12h normal shift
+  const progressRatio = currentStatus === 'ON_BREAK'
+    ? Math.max(0, Math.min(1, liveBreakSecondsLeft / (180 * 60)))
+    : Math.max(0, Math.min(1, liveWorkedSeconds / totalShiftSeconds));
+
+  const dialRadius = 88;
+  const circumference = 2 * Math.PI * dialRadius;
+  const strokeDashoffset = circumference * (1 - progressRatio);
 
   return (
-    <div className="flex flex-col items-center justify-between min-h-[calc(100vh-140px)] max-w-[430px] mx-auto px-4 py-4 space-y-4">
-      {/* Top Bar: Switch Staff link + Location pill */}
-      <div className="w-full flex items-center justify-between">
-        <button
-          onClick={switchStaff}
-          className="text-xs text-[#7A746A] hover:text-[#22201C] font-semibold cursor-pointer"
-        >
-          Not {firstName}? <span className="underline">Switch</span>
-        </button>
-
-        <LocationPill />
-      </div>
-
-      {/* Greeting Card */}
-      <div className="text-center space-y-1">
-        <p className="text-xs font-semibold text-[#7A746A] tracking-tight">
-          Sunday, 15 Nov · Shift 12:00 PM → 12:00 AM
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight text-[#22201C]">
-          Hi {firstName}! 👋
-        </h1>
-        <p className="text-xs text-[#7A746A]">
-          {currentStaff?.role} · Today's earning: <strong className="text-[#22201C] tabular-nums font-bold">₹{currentStaff?.daily_wage || 600}</strong>
-        </p>
-      </div>
-
-      {/* Error / Location Banner */}
-      {errorMessage && (
-        <div className="w-full p-3 bg-[#FDF0ED] border border-[#F8D0C8] rounded-2xl flex items-center gap-2 text-xs text-[#A8382B] animate-shake">
-          <AlertTriangle size={15} className="shrink-0" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-
-      {/* Hero Timer / Clock Center Area */}
-      <div className="my-auto py-4 flex flex-col items-center justify-center relative w-full">
-        <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
-          {/* Subtle Outer Glow */}
-          <div className="absolute inset-0 rounded-full bg-white border border-[#ECE7DF] warm-card" />
-
-          {/* SVG Progress Arc */}
-          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
-            <circle
-              cx="50"
-              cy="50"
-              r="44"
-              stroke="#F6F2EA"
-              strokeWidth="5"
-              fill="transparent"
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r="44"
-              stroke={
-                status === 'on_break'
-                  ? '#E8B44A'
-                  : status === 'on_floor'
-                  ? '#2F7D4F'
-                  : status === 'checked_out'
-                  ? '#4A7BB7'
-                  : '#ECE7DF'
-              }
-              strokeWidth="5.5"
-              strokeDasharray={276}
-              strokeDashoffset={
-                status === 'on_floor'
-                  ? Math.max(0, 276 - (workedSeconds / (12 * 3600)) * 276)
-                  : status === 'on_break'
-                  ? Math.max(0, 276 - (breakSecondsLeft / (3 * 3600)) * 276)
-                  : 0
-              }
-              strokeLinecap="round"
-              fill="transparent"
-              className="transition-all duration-1000 ease-linear"
-            />
-          </svg>
-
-          {/* Center Info */}
-          <div className="relative z-10 flex flex-col items-center justify-center text-center p-4">
-            {status === 'on_floor' ? (
-              <>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF5EE] text-[#23633E] border border-[#C6E7D1] text-xs font-semibold mb-2">
-                  <span className="w-2 h-2 rounded-full bg-[#2F7D4F] pulse-dot-green" />
-                  <span>On Floor</span>
-                </div>
-                <div className="hero-num text-4xl sm:text-5xl font-extrabold text-[#22201C] tabular-nums">
-                  {formatDuration(workedSeconds)}
-                </div>
-                <p className="text-xs text-[#7A746A] mt-1 font-medium">Worked Today</p>
-              </>
-            ) : status === 'on_break' ? (
-              <>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEF7E6] text-[#9A6A12] border border-[#FDE3A7] text-xs font-semibold mb-2">
-                  <Coffee size={13} />
-                  <span>3-hr Break</span>
-                </div>
-                <div className="hero-num text-3xl sm:text-4xl font-bold text-[#E8B44A] tabular-nums">
-                  {formatCountdown(breakSecondsLeft)}
-                </div>
-                <p className="text-xs text-[#7A746A] mt-1 font-medium">Time Remaining</p>
-              </>
-            ) : status === 'checked_out' ? (
-              <>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EDF4FC] text-[#2A5A8F] border border-[#CDE0F7] text-xs font-semibold mb-2">
-                  <CheckCircle2 size={13} />
-                  <span>Shift Completed</span>
-                </div>
-                <div className="hero-num text-3xl sm:text-4xl font-bold text-[#22201C] tabular-nums">
-                  {formatDuration(workedSeconds)}
-                </div>
-                <p className="text-xs text-[#7A746A] mt-1">Out at {formatTime12(rosterData?.checkOutTime)}</p>
-              </>
-            ) : status === 'on_leave' ? (
-              <>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EDF4FC] text-[#2A5A8F] border border-[#CDE0F7] text-xs font-semibold mb-2">
-                  <span>Approved Leave</span>
-                </div>
-                <div className="text-2xl font-bold text-[#22201C] mt-1">Day Off</div>
-                <p className="text-xs text-[#7A746A] mt-1">Enjoy your rest day!</p>
-              </>
-            ) : (
-              <>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F3F1EC] text-[#55524B] border border-[#E5E1D8] text-xs font-semibold mb-2">
-                  <Clock size={13} />
-                  <span>Shift Ready</span>
-                </div>
-                <div className="text-2xl font-bold text-[#22201C]">
-                  Start Shift
-                </div>
-                <p className="text-xs text-[#7A746A] mt-1">
-                  {isInsideGeofence ? 'Tap below to punch in' : 'Head to Sparta Building to enter shift'}
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Staff Live Location Map Card (v4) */}
-      <div className="w-full">
-        <StaffMapCard
-          userLocation={userLocation}
-          storeCoords={storeCoords}
-          distanceM={distanceM}
-          isInsideGeofence={isInsideGeofence}
-          isLocating={isLocating || isRequestingLocation}
-          locatingAccuracy={locatingAccuracy}
-          onRefreshLocation={handleEnableLocation}
-        />
-      </div>
-
-      {/* Primary Action Button */}
-      <div className="w-full space-y-3 pt-2">
-        {status === 'not_in_yet' && (
-          <div className="space-y-3">
-            {(!userLocation || permissionStatus === 'denied' || mockMode === 'off') ? (
-              <div className="p-4 rounded-2xl bg-[#F6F2EA] border border-[#ECE7DF] text-center space-y-3">
-                <div className="flex items-center justify-center gap-1.5 font-bold text-[#A8382B] text-xs">
-                  <AlertTriangle size={15} />
-                  <span>Location Sharing Off / Blocked</span>
-                </div>
-                <p className="text-[11px] text-[#7A746A] leading-relaxed">
-                  Location is strictly required to verify you are at Meats &amp; Plants (Sparta Building, {storeCoords.radius}m radius) before starting your shift.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={handleEnableLocation}
-                  disabled={isRequestingLocation}
-                  className="w-full py-3 px-4 rounded-xl bg-[#22201C] hover:bg-[#3D3A34] text-white text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-2 active:scale-98 disabled:opacity-75"
-                >
-                  {isRequestingLocation ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin text-[#2F7D4F]" />
-                      <span>Requesting GPS Location...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Navigation size={14} className="text-[#2F7D4F]" />
-                      <span>Enable / Share My Location</span>
-                    </>
-                  )}
-                </button>
-
-                <p className="text-[10px] text-[#7A746A] italic">
-                  If blocked, click the 🔒 lock or tune icon in your address bar to <strong>Allow Location</strong>, or use the quick trial test buttons below.
-                </p>
-
-                <div className="pt-2 border-t border-[#ECE7DF] space-y-1.5">
-                  <p className="text-[10px] font-bold text-[#7A746A] uppercase tracking-wider">
-                    Quick Trial Testing
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setMockMode('inside')}
-                      className="px-2.5 py-1.5 rounded-lg bg-[#EAF5EE] text-[#23633E] border border-[#C6E7D1] text-[11px] font-bold hover:bg-[#D5EEDB] transition-all cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <span>📍 At Sparta (30m)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMockMode('away')}
-                      className="px-2.5 py-1.5 rounded-lg bg-[#FDF0ED] text-[#C0573E] border border-[#F8D0C8] text-[11px] font-bold hover:bg-[#FBE9E7] transition-all cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <span>🚶 Away (1.3 km)</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : !isInsideGeofence ? (
-              <div className="p-4 rounded-2xl bg-[#FDF0ED] border border-[#F8D0C8] text-center space-y-2">
-                <div className="flex items-center justify-center gap-1.5 font-bold text-[#C0573E] text-xs">
-                  <Lock size={15} className="text-[#C0573E]" />
-                  <span>Outside Geofence ({formatDistance(distanceM)} away)</span>
-                </div>
-                <p className="text-[11px] text-[#7A746A] leading-relaxed">
-                  Shift entry is only permitted when you are inside or very near Sparta Building ({storeCoords.radius}m).
-                </p>
-                <div className="pt-2 border-t border-[#F8D0C8]/60 flex items-center justify-between text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setMockMode('inside')}
-                    className="font-bold text-[#23633E] hover:underline cursor-pointer"
-                  >
-                    📍 Switch to At Sparta (30m)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={stopSharingLocation}
-                    className="text-[#7A746A] hover:underline cursor-pointer"
-                  >
-                    🚫 Stop Sharing
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3.5 rounded-2xl bg-[#EAF5EE] border border-[#C6E7D1] space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-[#23633E] text-xs">
-                    <CheckCircle2 size={15} />
-                    <span>Location Verified: At Sparta Building</span>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#2F7D4F] text-white">
-                    {distanceM < 1 ? '0m' : formatDistance(distanceM)} away
-                  </span>
-                </div>
-                <p className="text-[11px] text-[#2F7D4F]">
-                  You are inside the {storeCoords.radius}m café radius. Tap below to start shift!
-                </p>
-                <div className="pt-1.5 border-t border-[#C6E7D1]/70 flex items-center justify-between text-[10px]">
-                  <button
-                    type="button"
-                    onClick={stopSharingLocation}
-                    className="text-[#C0573E] hover:underline font-semibold cursor-pointer"
-                  >
-                    🚫 Stop Sharing Location (Lock Shift)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMockMode('away')}
-                    className="text-[#7A746A] hover:underline font-semibold cursor-pointer"
-                  >
-                    🚶 Test Away (1.3 km)
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={handleStartShift}
-              disabled={(!isInsideGeofence && (userLocation !== null && permissionStatus === 'granted')) || loading}
-              className={`w-full py-4 px-6 rounded-2xl text-base font-bold transition-all tap-bounce flex items-center justify-center gap-2 shadow-xs ${
-                isInsideGeofence
-                  ? 'text-white bg-[#2F7D4F] hover:bg-[#276842] cursor-pointer active:scale-98 ring-4 ring-[#2F7D4F]/20'
-                  : 'bg-[#F6F2EA] text-[#A8A298] border border-[#ECE7DF] cursor-not-allowed'
-              }`}
-            >
-              {successAnimation ? (
-                <>
-                  <CheckCircle2 size={20} className="animate-scale-in" />
-                  <span>Shift Started! 🎉</span>
-                </>
-              ) : isInsideGeofence ? (
-                <>
-                  <Play size={18} fill="currentColor" />
-                  <span>Start Shift (At Sparta Building)</span>
-                </>
-              ) : (
-                <>
-                  <Lock size={18} />
-                  <span>
-                    {!userLocation || permissionStatus === 'denied' || mockMode === 'off'
-                      ? 'Enable Location to Start Shift'
-                      : 'Start Shift (Must Be At Sparta)'}
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-        )}
-
-        {status === 'on_floor' && (
-          <div className="space-y-2.5">
-            <button
-              onClick={handleEndShift}
-              disabled={loading || !isInsideGeofence}
-              className={`w-full py-4 px-6 rounded-2xl font-bold text-sm transition-all tap-bounce flex items-center justify-center gap-2 shadow-xs active:scale-98 ${
-                isInsideGeofence
-                  ? 'text-white bg-[#C0573E] hover:bg-[#A84530] cursor-pointer'
-                  : 'text-[#A8A298] border border-[#ECE7DF] bg-[#F6F2EA] cursor-not-allowed'
-              }`}
-              title={isInsideGeofence ? 'Stop Shift at Sparta Building' : `Must be inside Sparta Building to stop shift (${formatDistance(distanceM)} away)`}
-            >
-              {isInsideGeofence ? (
-                <>
-                  <LogOut size={18} />
-                  <span>Stop Shift (Check Out)</span>
-                </>
-              ) : (
-                <>
-                  <Lock size={18} />
-                  <span>Stop Shift (Must Be At Sparta)</span>
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={handleStartBreak}
-              disabled={!isInsideGeofence || loading}
-              className={`w-full py-3 px-4 rounded-xl font-bold text-xs transition-all tap-bounce flex items-center justify-center gap-2 ${
-                isInsideGeofence
-                  ? 'text-[#9A6A12] bg-[#FEF7E6] border border-[#FDE3A7] hover:bg-[#FDE3A7]/50 cursor-pointer'
-                  : 'bg-[#F6F2EA] text-[#A8A298] cursor-not-allowed border border-[#ECE7DF]'
-              }`}
-            >
-              <Coffee size={15} />
-              <span>Start 3-hr Break</span>
-            </button>
-          </div>
-        )}
-
-        {status === 'on_break' && (
-          <div className="space-y-2.5">
-            <button
-              onClick={handleEndBreak}
-              disabled={!isInsideGeofence || loading}
-              className={`w-full py-4 px-6 rounded-2xl font-bold text-xs transition-all tap-bounce flex items-center justify-center gap-2 shadow-xs ${
-                isInsideGeofence
-                  ? 'text-white bg-[#2F7D4F] hover:bg-[#276842] cursor-pointer'
-                  : 'bg-[#F6F2EA] text-[#A8A298] cursor-not-allowed'
-              }`}
-            >
-              <PlayCircle size={18} />
-              <span>End Break &amp; Return to Floor</span>
-            </button>
-
-            <button
-              onClick={handleEndShift}
-              disabled={loading || !isInsideGeofence}
-              className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
-                isInsideGeofence
-                  ? 'text-[#A8382B] bg-[#FDF0ED] border border-[#F8D0C8] hover:bg-[#FBE9E7] cursor-pointer'
-                  : 'text-[#A8A298] bg-[#F6F2EA] border border-[#ECE7DF] cursor-not-allowed'
-              }`}
-            >
-              {isInsideGeofence ? <LogOut size={15} /> : <Lock size={15} />}
-              <span>Stop Shift for Today {isInsideGeofence ? '' : '(Must Be At Sparta)'}</span>
-            </button>
-          </div>
-        )}
-
-        {status === 'checked_out' && (
-          <div className="p-4 bg-[#F6F2EA] rounded-2xl text-center space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF5EE] text-[#23633E] border border-[#C6E7D1] text-xs font-bold">
-              <CheckCircle2 size={14} />
-              <span>Shift Completed &amp; Recorded</span>
-            </div>
-            <p className="text-xs text-[#7A746A]">
-              Check-in and check-out successfully recorded for today. Great job! 👏
-            </p>
-            <button
-              onClick={handleResetToday}
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-xl bg-white border border-[#ECE7DF] text-xs font-bold text-[#C0573E] hover:bg-[#FDF0ED] transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-2 active:scale-98"
-            >
-              <RotateCcw size={14} />
-              <span>↺ Reset Shift (Re-test Check-in from Scratch)</span>
-            </button>
-          </div>
-        )}
-
-        {/* Status Strip & Forgot to Punch Link */}
-        <div className="flex items-center justify-between text-xs px-2 pt-1">
-          {rosterData?.checkInTime ? (
-            <span className="text-[#7A746A]">
-              Checked in at <strong className="text-[#22201C]">{formatTime12(rosterData.checkInTime)}</strong>
-              {rosterData.isLate && <span className="text-[#9A6A12] ml-1 font-bold">(Late mark)</span>}
-            </span>
-          ) : (
-            <span className="text-[#7A746A]">Shift not started</span>
-          )}
-
-          <button
-            onClick={() => setFixModalOpen(true)}
-            className="text-xs text-[#C0573E] hover:underline font-semibold cursor-pointer"
+    <div className="space-y-4 max-w-[430px] mx-auto pb-10">
+      {/* Top Header Card */}
+      <div className="p-4 rounded-xl bg-white border border-[#E6E6E2] shadow-2xs flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-semibold shrink-0"
+            style={{ backgroundColor: currentStaff?.avatar_color || '#0A0A0A' }}
           >
-            Forgot to punch? Request a fix
+            {currentStaff?.name[0]}
+          </div>
+          <div>
+            <div className="text-sm font-semibold tracking-tight text-[#0A0A0A]">
+              {currentStaff?.name}
+            </div>
+            <div className="text-xs text-[#6E6E6A]">
+              {currentStaff?.role}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {/* Rules info icon */}
+          <button
+            onClick={() => setRulesModalOpen(true)}
+            className="p-2 rounded-lg text-[#6E6E6A] hover:text-[#0A0A0A] hover:bg-[#F2F2EF] transition-colors cursor-pointer"
+            title="Café Rules & Guidelines"
+          >
+            <Info size={16} />
+          </button>
+
+          {/* Switch Staff button */}
+          <button
+            onClick={switchStaff}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#E6E6E2] bg-white text-xs font-medium text-[#0A0A0A] hover:bg-[#F2F2EF] transition-colors cursor-pointer"
+            title="Switch staff member"
+          >
+            <RotateCcw size={13} />
+            <span>Switch</span>
           </button>
         </div>
       </div>
 
-      {/* Trial Reset Helper */}
-      <div className="w-full text-center pt-2">
-        <button
-          onClick={handleResetToday}
-          disabled={loading}
-          className="text-[11px] text-[#7A746A] hover:text-[#C0573E] underline font-semibold cursor-pointer inline-flex items-center gap-1 transition-colors"
-          title="Reset your shift for today to test check-in again"
-        >
-          <span>↺ Reset today's shift to test check-in again</span>
-        </button>
+      {/* Error Toast Banner */}
+      {errorMessage && (
+        <div className="p-3.5 rounded-xl bg-white border border-[#B42318] text-xs text-[#B42318] flex items-start gap-2.5 shadow-2xs animate-fade-in">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          <div className="flex-1 leading-relaxed">{errorMessage}</div>
+          <button onClick={() => setErrorMessage(null)} className="text-[#6E6E6A] hover:text-[#0A0A0A] text-xs font-semibold">✕</button>
+        </div>
+      )}
+
+      {/* Section 1 & 9: Circular Timer Dial */}
+      <div className="p-6 rounded-xl bg-white border border-[#E6E6E2] text-center shadow-2xs">
+        <div className="relative w-56 h-56 mx-auto flex items-center justify-center">
+          <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 200 200">
+            {/* Background hairline track */}
+            <circle
+              cx="100"
+              cy="100"
+              r={dialRadius}
+              fill="transparent"
+              stroke="#E6E6E2"
+              strokeWidth="5"
+            />
+            {/* Violet-red progress arc */}
+            {(currentStatus === 'ON_SHIFT' || currentStatus === 'ON_BREAK') && (
+              <circle
+                cx="100"
+                cy="100"
+                r={dialRadius}
+                fill="transparent"
+                stroke={currentStatus === 'ON_BREAK' ? '#B7791F' : '#B0235F'}
+                strokeWidth="5"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+              />
+            )}
+          </svg>
+
+          {/* Central tabular time display */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="section-label mb-1">
+              {currentStatus === 'NOT_STARTED' && 'READY FOR SHIFT'}
+              {currentStatus === 'ON_SHIFT' && 'WORKED TODAY'}
+              {currentStatus === 'ON_BREAK' && 'BREAK REMAINING'}
+              {currentStatus === 'ENDED' && 'SHIFT COMPLETED'}
+            </span>
+
+            <div className="font-semibold text-3xl tracking-tight text-[#0A0A0A] tabular-nums">
+              {currentStatus === 'ON_BREAK'
+                ? formatCountdown(liveBreakSecondsLeft)
+                : formatDuration(liveWorkedSeconds)}
+            </div>
+
+            <div className="mt-1 text-xs text-[#6E6E6A] flex items-center gap-1.5">
+              {currentStatus === 'NOT_STARTED' && (
+                <span>Shift starts at 12:00 PM</span>
+              )}
+              {currentStatus === 'ON_SHIFT' && (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full status-dot-present" />
+                  <span>On floor · Shift running</span>
+                </>
+              )}
+              {currentStatus === 'ON_BREAK' && (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full status-dot-break animate-pulse" />
+                  <span>On 3-hr break</span>
+                </>
+              )}
+              {currentStatus === 'ENDED' && (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full status-dot-present" />
+                  <span>Total {formatDuration(liveWorkedSeconds)}</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="mt-6 pt-5 border-t border-[#E6E6E2] space-y-2.5">
+          {currentStatus === 'NOT_STARTED' && (
+            <button
+              onClick={handleStartShift}
+              disabled={loading}
+              className="w-full py-3 px-4 rounded-xl bg-[#0A0A0A] text-white hover:bg-[#222222] font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? (
+                <RefreshCw size={16} className="animate-spin text-white" />
+              ) : (
+                <Play size={16} fill="currentColor" />
+              )}
+              <span>{loading ? 'Verifying location…' : 'Start Shift'}</span>
+            </button>
+          )}
+
+          {currentStatus === 'ON_SHIFT' && (
+            <div className="space-y-2">
+              {!dayState?.breakUsed ? (
+                <button
+                  onClick={handleStartBreak}
+                  disabled={loading}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E6E6E2] text-[#0A0A0A] hover:bg-[#F2F2EF] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Coffee size={14} className="text-[#B7791F]" />
+                  <span>{loading ? 'Checking location…' : 'Start 3-Hour Break'}</span>
+                </button>
+              ) : (
+                <div className="text-[11px] text-[#6E6E6A] py-1">
+                  1 of 1 break taken today
+                </div>
+              )}
+
+              <button
+                onClick={handleEndShift}
+                disabled={loading}
+                className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E6E6E2] text-[#B42318] hover:bg-[#F2F2EF] font-medium text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <LogOut size={14} />
+                <span>End Shift</span>
+              </button>
+            </div>
+          )}
+
+          {currentStatus === 'ON_BREAK' && (
+            <div className="space-y-2">
+              <button
+                onClick={handleEndBreak}
+                disabled={loading}
+                className="w-full py-3 px-4 rounded-xl bg-[#0A0A0A] text-white hover:bg-[#222222] font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle2 size={16} />
+                <span>{loading ? 'Ending break…' : 'End Break & Back to Floor'}</span>
+              </button>
+
+              <button
+                onClick={handleEndShift}
+                disabled={loading}
+                className="w-full py-2 text-xs text-[#B42318] hover:underline transition-all cursor-pointer"
+              >
+                End shift now (closes break)
+              </button>
+            </div>
+          )}
+
+          {currentStatus === 'ENDED' && (
+            <div className="p-3 rounded-lg bg-[#FAFAF8] border border-[#E6E6E2] text-xs text-[#6E6E6A]">
+              Shift ended for today at {dayState?.shiftEnd ? formatTime12(dayState.shiftEnd) : 'earlier'}.
+            </div>
+          )}
+
+          {/* Test Trial Reset Button */}
+          <div className="pt-2 flex items-center justify-between text-[11px] text-[#6E6E6A]">
+            <button
+              onClick={() => setFixModalOpen(true)}
+              className="hover:underline text-[#0A0A0A] font-medium cursor-pointer"
+            >
+              Forgot to punch? Request fix
+            </button>
+
+            <button
+              onClick={handleResetShift}
+              disabled={loading}
+              className="text-[#6E6E6A] hover:text-[#0A0A0A] hover:underline cursor-pointer"
+              title="Reset today's shift records to test again"
+            >
+              Reset for trial
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Forgot to punch Modal */}
-      <PunchFixModal
-        isOpen={fixModalOpen}
-        onClose={() => setFixModalOpen(false)}
-        employeeId={currentStaff!.id}
-        onSuccess={() => fetchTodayStatus()}
+      {/* Section 3: Staff GPS Map Card */}
+      <StaffMapCard
+        userLocation={userLocation}
+        storeCoords={storeCoords}
+        distanceM={distanceM}
+        isInsideGeofence={isInsideGeofence}
+        isLocating={isLocating}
+        locatingAccuracy={locatingAccuracy}
+        onRefreshLocation={refreshLocation}
+        cafeName="Meats & Plants"
+      />
+
+      {/* Punch Fix Modal */}
+      {fixModalOpen && currentStaff && (
+        <PunchFixModal
+          employeeId={currentStaff.id}
+          onClose={() => setFixModalOpen(false)}
+        />
+      )}
+
+      {/* Rules Info Modal */}
+      <RulesModal
+        isOpen={rulesModalOpen}
+        onClose={() => setRulesModalOpen(false)}
       />
     </div>
   );
